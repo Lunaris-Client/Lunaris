@@ -21,6 +21,8 @@ class SiteData with _$SiteData {
     @Default(false) bool canCreateTag,
     @Default(false) bool canTagTopics,
     int? uncategorizedCategoryId,
+    Map<String, String>? defaultLightColors,
+    Map<String, String>? defaultDarkColors,
     required DateTime fetchedAt,
   }) = _SiteData;
 
@@ -89,8 +91,25 @@ class SiteData with _$SiteData {
       canCreateTag: json['can_create_tag'] as bool? ?? false,
       canTagTopics: json['can_tag_topics'] as bool? ?? false,
       uncategorizedCategoryId: json['uncategorized_category_id'] as int?,
+      defaultLightColors: _parseColorScheme(json['default_light_color_scheme']),
+      defaultDarkColors: _parseColorScheme(json['default_dark_color_scheme']),
       fetchedAt: DateTime.now(),
     );
+  }
+
+  static Map<String, String>? _parseColorScheme(dynamic scheme) {
+    if (scheme is! Map) return null;
+    final colors = scheme['colors'] as List<dynamic>?;
+    if (colors == null || colors.isEmpty) return null;
+    final map = <String, String>{};
+    for (final entry in colors) {
+      if (entry is Map) {
+        final name = entry['name'] as String?;
+        final hex = entry['hex'] as String?;
+        if (name != null && hex != null) map[name] = hex;
+      }
+    }
+    return map.isEmpty ? null : map;
   }
 
   static Map<String, int> _parseIntMap(dynamic value) {

@@ -13,6 +13,7 @@ import 'package:lunaris/core/api/discourse_api_client.dart';
 import 'package:lunaris/core/auth/auth_service.dart';
 import 'package:lunaris/core/models/models.dart';
 import 'package:lunaris/core/providers/providers.dart';
+import 'package:lunaris/core/providers/theme_settings_provider.dart';
 import 'package:lunaris/core/services/background_notification_service.dart';
 import 'package:lunaris/core/services/local_notification_service.dart';
 import 'package:lunaris/ui/theme/lunaris_theme.dart';
@@ -210,12 +211,15 @@ class _LunarisAppState extends ConsumerState<LunarisApp> {
 
   @override
   Widget build(BuildContext context) {
+    final themeMode = ref.watch(themeSettingsProvider.select((s) => s.themeMode));
+    final seedColor = ref.watch(effectiveSeedColorProvider);
+
     return MaterialApp.router(
       title: 'Lunaris',
       debugShowCheckedModeBanner: false,
-      theme: LunarisTheme.light(),
-      darkTheme: LunarisTheme.dark(),
-      themeMode: ThemeMode.system,
+      theme: LunarisTheme.light(seedColor: seedColor),
+      darkTheme: LunarisTheme.dark(seedColor: seedColor),
+      themeMode: themeMode,
       routerConfig: _router,
     );
   }

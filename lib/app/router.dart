@@ -8,6 +8,7 @@ import 'package:lunaris/features/auth/login_screen.dart';
 import 'package:lunaris/features/home/home_shell.dart';
 import 'package:lunaris/features/profile/user_profile_screen.dart';
 import 'package:lunaris/features/settings/notification_settings_screen.dart';
+import 'package:lunaris/features/settings/theme_settings_screen.dart';
 import 'package:lunaris/features/topic/topic_view_screen.dart';
 
 class TopicRouteExtra {
@@ -47,6 +48,10 @@ GoRouter createRouter(String initialLocation) {
       GoRoute(
         path: '/settings',
         builder: (context, state) => const NotificationSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/theme',
+        builder: (context, state) => const ThemeSettingsScreen(),
       ),
       GoRoute(
         path: '/topic/:id',

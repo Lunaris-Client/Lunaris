@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lunaris/core/providers/notification_settings_provider.dart';
 import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/core/services/local_notification_service.dart';
+import 'package:lunaris/ui/widgets/section_header.dart';
 
 class NotificationSettingsScreen extends ConsumerWidget {
   const NotificationSettingsScreen({super.key});
@@ -24,7 +25,7 @@ class NotificationSettingsScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Notification Settings')),
       body: ListView(
         children: [
-          const _SectionHeader(title: 'General'),
+          const SectionHeader(title: 'General'),
           SwitchListTile(
             title: const Text('Notifications'),
             subtitle: Text('Enable notifications for ${server.siteName}'),
@@ -72,7 +73,7 @@ class NotificationSettingsScreen extends ConsumerWidget {
                     : null,
           ),
           const Divider(),
-          const _SectionHeader(title: 'Quiet Hours'),
+          const SectionHeader(title: 'Quiet Hours'),
           SwitchListTile(
             title: const Text('Do Not Disturb'),
             subtitle: const Text('Silence notifications during set hours'),
@@ -113,7 +114,7 @@ class NotificationSettingsScreen extends ConsumerWidget {
               ),
             ),
           const Divider(),
-          const _SectionHeader(title: 'Notification Types'),
+          const SectionHeader(title: 'Notification Types'),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
@@ -166,26 +167,6 @@ class NotificationSettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
         ],
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  const _SectionHeader({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Text(
-        title,
-        style: theme.textTheme.titleSmall?.copyWith(
-          color: theme.colorScheme.primary,
-          fontWeight: FontWeight.w600,
-        ),
       ),
     );
   }

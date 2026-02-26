@@ -98,6 +98,14 @@ class ServerSwitcherDrawer extends ConsumerWidget {
                 context.push('/settings');
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.palette_outlined),
+              title: const Text('Appearance'),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/settings/theme');
+              },
+            ),
             if (activeServer != null)
               ListTile(
                 leading: Icon(
