@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:lunaris/core/models/site_category.dart';
 import 'package:lunaris/core/providers/topic_detail_provider.dart';
 import 'package:lunaris/core/utils/color_utils.dart';
+import 'package:lunaris/features/composer/reply_composer_screen.dart';
 import 'package:lunaris/features/topic/post_item.dart';
 import 'package:lunaris/features/topic/timeline_scrubber.dart';
 
@@ -192,6 +193,29 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
 
   TopicDetailNotifier get _notifier =>
       ref.read(topicDetailProvider(_params).notifier);
+
+  void _openReplyComposer({
+    int? replyToPostNumber,
+    String? username,
+    String? quoted,
+  }) {
+    final state = ref.read(topicDetailProvider(_params));
+    final title = state.topic?.title ?? widget.topicTitle ?? 'Topic';
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder:
+            (_) => ReplyComposerScreen(
+              serverUrl: widget.serverUrl,
+              topicId: widget.topicId,
+              topicTitle: title,
+              replyToPostNumber: replyToPostNumber,
+              replyToUsername: username,
+              quotedText: quoted,
+            ),
+      ),
+    );
+  }
 
   Widget? _buildTimelineScrubber(TopicDetailState state) {
     if (state.topic == null || state.topic!.posts.length <= 3) return null;
@@ -567,6 +591,11 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
                       onBookmarkTap: () => _notifier.toggleBookmark(post.id),
                       onShareTap: () => _sharePost(post.postNumber),
                       onReplyToTap: _scrollToPostNumber,
+                      onReplyTap:
+                          () => _openReplyComposer(
+                            replyToPostNumber: post.postNumber,
+                            username: post.username,
+                          ),
                     ),
                     if (index < topic.posts.length - 1)
                       const Divider(height: 1, indent: 62),
@@ -605,14 +634,13 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
   }
 
   Widget _buildNavigationFab(TopicDetailState state, ThemeData theme) {
-    if (!_showScrollToTop) return const SizedBox.shrink();
     final hasUnread =
         state.topic != null && _notifier.firstUnreadPostNumber != null;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (hasUnread)
+        if (_showScrollToTop && hasUnread)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: FloatingActionButton.small(
@@ -625,16 +653,26 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
               ),
             ),
           ),
-        FloatingActionButton.small(
-          heroTag: 'fab_top',
-          onPressed:
-              () => _scrollController.animateTo(
-                0,
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeOut,
-              ),
-          child: const Icon(Icons.arrow_upward_rounded),
-        ),
+        if (_showScrollToTop)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: FloatingActionButton.small(
+              heroTag: 'fab_top',
+              onPressed:
+                  () => _scrollController.animateTo(
+                    0,
+                    duration: const Duration(milliseconds: 400),
+                    curve: Curves.easeOut,
+                  ),
+              child: const Icon(Icons.arrow_upward_rounded),
+            ),
+          ),
+        if (state.topic != null)
+          FloatingActionButton(
+            heroTag: 'fab_reply',
+            onPressed: () => _openReplyComposer(),
+            child: const Icon(Icons.edit_rounded),
+          ),
       ],
     );
   }

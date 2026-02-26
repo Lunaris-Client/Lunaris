@@ -20,6 +20,7 @@ import 'package:lunaris/core/providers/message_bus_provider.dart';
 import 'package:lunaris/core/providers/notification_provider.dart';
 import 'package:lunaris/core/providers/notification_settings_provider.dart';
 import 'package:lunaris/core/services/local_notification_service.dart';
+import 'package:lunaris/features/composer/new_topic_composer_screen.dart';
 import 'package:lunaris/features/notifications/notification_list_view.dart';
 import 'package:lunaris/features/topic/topic_view_screen.dart';
 
@@ -98,6 +99,24 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       _selectedTopic = null;
       _currentTab = 0;
     });
+  }
+
+  void _openNewTopicComposer(SiteData siteData) {
+    final server = ref.read(activeServerProvider);
+    if (server == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder:
+            (_) => NewTopicComposerScreen(
+              serverUrl: server.serverUrl,
+              categories: siteData.categories,
+              topTags: siteData.topTags,
+              canTagTopics: siteData.canTagTopics,
+              canCreateTag: siteData.canCreateTag,
+            ),
+      ),
+    );
   }
 
   @override
@@ -217,6 +236,19 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         ],
       ),
       drawer: const ServerSwitcherDrawer(),
+      floatingActionButton:
+          _currentTab == 0
+              ? siteAsync.whenOrNull(
+                data: (siteData) {
+                  if (siteData == null) return null;
+                  return FloatingActionButton(
+                    heroTag: 'fab_new_topic',
+                    onPressed: () => _openNewTopicComposer(siteData),
+                    child: const Icon(Icons.add_rounded),
+                  );
+                },
+              )
+              : null,
       body: siteAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error:

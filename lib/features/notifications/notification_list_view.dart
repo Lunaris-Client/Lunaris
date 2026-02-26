@@ -159,11 +159,14 @@ class _FilterBar extends StatelessWidget {
         itemBuilder: (context, index) {
           final (filter, label) = _filters[index];
           final isActive = activeFilter == filter;
-          return FilterChip(
-            label: Text(label),
-            selected: isActive,
-            onSelected: (_) => onFilterChanged(filter),
-            showCheckmark: false,
+          return Center(
+            child: FilterChip(
+              label: Text(label),
+              selected: isActive,
+              onSelected: (_) => onFilterChanged(filter),
+              showCheckmark: false,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
           );
         },
       ),

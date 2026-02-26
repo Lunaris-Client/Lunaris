@@ -265,6 +265,7 @@ class _PostItemState extends State<PostItem> {
             onTap: widget.onBookmarkTap,
           ),
           _ActionButton(icon: Icons.share_outlined, onTap: widget.onShareTap),
+          _ActionButton(icon: Icons.reply_rounded, onTap: widget.onReplyTap),
           if (post.wiki)
             Padding(
               padding: const EdgeInsets.only(left: 4),

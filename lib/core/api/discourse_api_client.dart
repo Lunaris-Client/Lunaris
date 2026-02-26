@@ -293,4 +293,89 @@ class DiscourseApiClient {
       options: _authHeaders(apiKey),
     );
   }
+
+  Future<Map<String, dynamic>> createPost(
+    String serverUrl,
+    String apiKey, {
+    required String raw,
+    int? topicId,
+    int? replyToPostNumber,
+    String? title,
+    int? categoryId,
+    List<String>? tags,
+    String? archetype,
+    String? targetRecipients,
+  }) async {
+    final data = <String, dynamic>{'raw': raw};
+    if (topicId != null) data['topic_id'] = topicId;
+    if (replyToPostNumber != null) {
+      data['reply_to_post_number'] = replyToPostNumber;
+    }
+    if (title != null) data['title'] = title;
+    if (categoryId != null) data['category'] = categoryId;
+    if (tags != null && tags.isNotEmpty) data['tags[]'] = tags;
+    if (archetype != null) data['archetype'] = archetype;
+    if (targetRecipients != null) {
+      data['target_recipients'] = targetRecipients;
+    }
+    final response = await _dio.post(
+      '$serverUrl/posts',
+      data: data,
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<void> saveDraft(
+    String serverUrl,
+    String apiKey, {
+    required String draftKey,
+    required String data,
+    int draftSequence = 0,
+  }) async {
+    await _dio.post(
+      '$serverUrl/drafts.json',
+      data: {'draft_key': draftKey, 'data': data, 'sequence': draftSequence},
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> deleteDraft(
+    String serverUrl,
+    String apiKey, {
+    required String draftKey,
+  }) async {
+    await _dio.delete(
+      '$serverUrl/drafts/$draftKey.json',
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<List<dynamic>> searchTags(
+    String serverUrl,
+    String apiKey, {
+    required String query,
+  }) async {
+    final response = await _dio.get(
+      '$serverUrl/tags/filter/search.json',
+      queryParameters: {'q': query},
+      options: _authHeaders(apiKey),
+    );
+    return (response.data['results'] as List?) ?? [];
+  }
+
+  Future<List<dynamic>> searchSimilarTopics(
+    String serverUrl,
+    String apiKey, {
+    required String title,
+    String? raw,
+  }) async {
+    final response = await _dio.get(
+      '$serverUrl/search/query.json',
+      queryParameters: {'q': 'title:$title', if (raw != null) 'raw': raw},
+      options: _authHeaders(apiKey),
+    );
+    final topics = response.data['topics'] as List?;
+    return topics ?? [];
+  }
 }
