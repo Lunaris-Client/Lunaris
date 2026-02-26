@@ -13,18 +13,23 @@ import 'package:lunaris/core/api/discourse_api_client.dart';
 import 'package:lunaris/core/auth/auth_service.dart';
 import 'package:lunaris/core/models/models.dart';
 import 'package:lunaris/core/providers/providers.dart';
+import 'package:lunaris/core/services/background_notification_service.dart';
+import 'package:lunaris/core/services/local_notification_service.dart';
 import 'package:lunaris/ui/theme/lunaris_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await LocalNotificationService().initialize();
+  await BackgroundNotificationService.initialize();
+  await BackgroundNotificationService.register();
+
   final prefs = await SharedPreferences.getInstance();
   final initialRoute = await _resolveInitialRoute(prefs);
 
   runApp(
     ProviderScope(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-      ],
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
       child: LunarisApp(initialRoute: initialRoute),
     ),
   );
@@ -41,8 +46,9 @@ Future<String> _resolveInitialRoute(SharedPreferences prefs) async {
   final raw = prefs.getString('server_accounts');
   if (raw == null) return '/';
   final list = jsonDecode(raw) as List;
-  final hasActive =
-      list.any((e) => e['id'] == activeId && e['isAuthenticated'] == true);
+  final hasActive = list.any(
+    (e) => e['id'] == activeId && e['isAuthenticated'] == true,
+  );
   return hasActive ? '/home' : '/';
 }
 
@@ -92,9 +98,10 @@ Future<bool> _handleAuthDeepLink(SharedPreferences prefs) async {
       return false;
     }
 
-    final list = (jsonDecode(raw) as List)
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
+    final list =
+        (jsonDecode(raw) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
     final idx = list.indexWhere((e) => e['serverUrl'] == session.serverUrl);
     if (idx < 0) {
       await authService.clearPendingSession();
@@ -179,9 +186,8 @@ class _LunarisAppState extends ConsumerState<LunarisApp> {
       } catch (_) {}
 
       final accounts = ref.read(serverAccountsProvider);
-      final existing = accounts
-          .where((a) => a.serverUrl == session.serverUrl)
-          .firstOrNull;
+      final existing =
+          accounts.where((a) => a.serverUrl == session.serverUrl).firstOrNull;
       if (existing == null) return;
 
       final updated = existing.copyWith(

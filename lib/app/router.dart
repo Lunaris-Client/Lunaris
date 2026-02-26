@@ -6,6 +6,7 @@ import 'package:lunaris/features/server/server_list_screen.dart';
 import 'package:lunaris/features/server/add_server_screen.dart';
 import 'package:lunaris/features/auth/login_screen.dart';
 import 'package:lunaris/features/home/home_shell.dart';
+import 'package:lunaris/features/settings/notification_settings_screen.dart';
 import 'package:lunaris/features/topic/topic_view_screen.dart';
 
 class TopicRouteExtra {
@@ -24,22 +25,21 @@ GoRouter createRouter(String initialLocation) {
   return GoRouter(
     initialLocation: initialLocation,
     routes: [
-      GoRoute(
-        path: '/',
-        builder: (context, state) => const ServerListScreen(),
-      ),
+      GoRoute(path: '/', builder: (context, state) => const ServerListScreen()),
       GoRoute(
         path: '/add-server',
         builder: (context, state) => const AddServerScreen(),
       ),
       GoRoute(
         path: '/login',
-        builder: (context, state) =>
-            LoginScreen(account: state.extra! as ServerAccount),
+        builder:
+            (context, state) =>
+                LoginScreen(account: state.extra! as ServerAccount),
       ),
+      GoRoute(path: '/home', builder: (context, state) => const HomeShell()),
       GoRoute(
-        path: '/home',
-        builder: (context, state) => const HomeShell(),
+        path: '/settings',
+        builder: (context, state) => const NotificationSettingsScreen(),
       ),
       GoRoute(
         path: '/topic/:id',

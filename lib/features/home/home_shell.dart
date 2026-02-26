@@ -18,6 +18,8 @@ import 'package:lunaris/features/home/server_switcher_drawer.dart';
 import 'package:lunaris/features/home/sidebar_navigation.dart';
 import 'package:lunaris/core/providers/message_bus_provider.dart';
 import 'package:lunaris/core/providers/notification_provider.dart';
+import 'package:lunaris/core/providers/notification_settings_provider.dart';
+import 'package:lunaris/core/services/local_notification_service.dart';
 import 'package:lunaris/features/notifications/notification_list_view.dart';
 import 'package:lunaris/features/topic/topic_view_screen.dart';
 
@@ -120,30 +122,51 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       if (next == null || !mounted) return;
       if (next.type == 'notification_alert' && next.data is Map) {
         final data = next.data as Map;
+        final notificationType = data['notification_type'] as int? ?? 0;
+        final settings = ref.read(
+          notificationSettingsProvider(server.serverUrl),
+        );
+
+        if (!settings.shouldNotify(notificationType)) return;
+
         final excerpt =
             data['excerpt'] as String? ??
             data['fancy_title'] as String? ??
             'New notification';
         final username = data['username'] as String? ?? '';
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text(
-                username.isNotEmpty ? '$username: $excerpt' : excerpt,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+        final displayText =
+            username.isNotEmpty ? '$username: $excerpt' : excerpt;
+
+        if (settings.showInAppToasts) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(
+                  displayText,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 4),
+                action: SnackBarAction(
+                  label: 'View',
+                  onPressed: () {
+                    setState(() => _currentTab = 2);
+                  },
+                ),
               ),
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 4),
-              action: SnackBarAction(
-                label: 'View',
-                onPressed: () {
-                  setState(() => _currentTab = 2);
-                },
-              ),
-            ),
+            );
+        }
+
+        if (settings.showSystemNotifications) {
+          LocalNotificationService().show(
+            id: notificationType + DateTime.now().millisecond,
+            title: server.siteName,
+            body: displayText,
+            payload: server.serverUrl,
           );
+        }
       }
     });
 
