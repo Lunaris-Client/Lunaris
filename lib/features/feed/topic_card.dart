@@ -126,15 +126,7 @@ class TopicCard extends StatelessWidget {
   }
 
   Widget _buildExcerpt(ThemeData theme) {
-    final cleaned =
-        topic.excerpt!
-            .replaceAll(RegExp(r'<[^>]*>'), '')
-            .replaceAll('&hellip;', '...')
-            .replaceAll('&amp;', '&')
-            .replaceAll('&lt;', '<')
-            .replaceAll('&gt;', '>')
-            .replaceAll('&quot;', '"')
-            .trim();
+    final cleaned = stripHtml(topic.excerpt!);
     if (cleaned.isEmpty) return const SizedBox.shrink();
 
     return Text(
@@ -280,18 +272,12 @@ class _StatChip extends StatelessWidget {
         Icon(icon, size: 14, color: theme.colorScheme.onSurfaceVariant),
         const SizedBox(width: 3),
         Text(
-          _formatCount(value),
+          formatCount(value),
           style: theme.textTheme.labelSmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ],
     );
-  }
-
-  static String _formatCount(int count) {
-    if (count >= 10000) return '${(count / 1000).toStringAsFixed(0)}k';
-    if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}k';
-    return count.toString();
   }
 }

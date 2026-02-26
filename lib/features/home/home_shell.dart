@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lunaris/core/models/site_category.dart';
+import 'package:lunaris/core/models/site_data.dart';
 import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/features/home/server_switcher_drawer.dart';
 import 'package:lunaris/features/feed/topic_list_view.dart';
 import 'package:lunaris/features/feed/feed_filter_bar.dart';
 import 'package:lunaris/features/feed/category_filter_sheet.dart';
 import 'package:lunaris/features/feed/tag_filter_sheet.dart';
+import 'package:lunaris/features/categories/category_browser_view.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
@@ -18,6 +20,7 @@ class HomeShell extends ConsumerStatefulWidget {
 }
 
 class _HomeShellState extends ConsumerState<HomeShell> {
+  int _currentTab = 0;
   String _activeFilter = 'latest';
   SiteCategory? _selectedCategory;
   String? _selectedTag;
@@ -31,6 +34,15 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   void _onPeriodChanged(String period) {
     if (period == _selectedPeriod) return;
     setState(() => _selectedPeriod = period);
+  }
+
+  void _onCategoryBrowseSelected(SiteCategory category) {
+    setState(() {
+      _selectedCategory = category;
+      _selectedTag = null;
+      _activeFilter = 'latest';
+      _currentTab = 0;
+    });
   }
 
   Future<void> _showCategorySheet(List<SiteCategory> categories) async {
@@ -131,41 +143,65 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           if (siteData == null) {
             return const Center(child: CircularProgressIndicator());
           }
-          final effectivePeriod =
-              _activeFilter == 'top' ? _selectedPeriod : null;
-          return Column(
-            children: [
-              FeedFilterBar(
-                activeFilter: _activeFilter,
-                onFilterChanged: _onFilterChanged,
-                activePeriod: _selectedPeriod,
-                onPeriodChanged: _onPeriodChanged,
-                periods: siteData.periods,
-                activeCategory: _selectedCategory,
-                onCategoryTap: () => _showCategorySheet(siteData.categories),
-                onCategoryClear: () => setState(() => _selectedCategory = null),
-                activeTag: _selectedTag,
-                onTagTap: () => _showTagSheet(siteData.topTags),
-                onTagClear: () => setState(() => _selectedTag = null),
-              ),
-              Expanded(
-                child: TopicListView(
-                  key: ValueKey(
-                    '$_activeFilter-${_selectedCategory?.id}-$_selectedTag-$effectivePeriod',
-                  ),
-                  serverUrl: server.serverUrl,
-                  siteData: siteData,
-                  filter: _activeFilter,
-                  categoryId: _selectedCategory?.id,
-                  categorySlug: _selectedCategory?.slug,
-                  tagName: _selectedTag,
-                  period: effectivePeriod,
-                ),
-              ),
-            ],
-          );
+          return _currentTab == 0
+              ? _buildFeedTab(siteData, server.serverUrl)
+              : CategoryBrowserView(
+                siteData: siteData,
+                onCategorySelected: _onCategoryBrowseSelected,
+              );
         },
       ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentTab,
+        onDestinationSelected: (i) => setState(() => _currentTab = i),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.forum_outlined),
+            selectedIcon: Icon(Icons.forum_rounded),
+            label: 'Feed',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.category_outlined),
+            selectedIcon: Icon(Icons.category_rounded),
+            label: 'Categories',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeedTab(SiteData siteData, String serverUrl) {
+    final effectivePeriod = _activeFilter == 'top' ? _selectedPeriod : null;
+    return Column(
+      children: [
+        FeedFilterBar(
+          activeFilter: _activeFilter,
+          onFilterChanged: _onFilterChanged,
+          activePeriod: _selectedPeriod,
+          onPeriodChanged: _onPeriodChanged,
+          periods: siteData.periods,
+          activeCategory: _selectedCategory,
+          onCategoryTap: () => _showCategorySheet(siteData.categories),
+          onCategoryClear: () => setState(() => _selectedCategory = null),
+          activeTag: _selectedTag,
+          onTagTap: () => _showTagSheet(siteData.topTags),
+          onTagClear: () => setState(() => _selectedTag = null),
+        ),
+        Expanded(
+          child: TopicListView(
+            key: ValueKey(
+              '$_activeFilter-${_selectedCategory?.id}-$_selectedTag-$effectivePeriod',
+            ),
+            serverUrl: serverUrl,
+            siteData: siteData,
+            filter: _activeFilter,
+            categoryId: _selectedCategory?.id,
+            categorySlug: _selectedCategory?.slug,
+            tagName: _selectedTag,
+            period: effectivePeriod,
+          ),
+        ),
+      ],
     );
   }
 }

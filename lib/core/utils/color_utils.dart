@@ -11,3 +11,21 @@ Color parseHexColor(String hex) {
   }
   return Color(int.parse(cleaned, radix: 16));
 }
+
+String stripHtml(String html) {
+  return html
+      .replaceAll(RegExp(r'<[^>]*>'), '')
+      .replaceAll('&amp;', '&')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#39;', "'")
+      .replaceAll('&hellip;', '...')
+      .trim();
+}
+
+String formatCount(int count) {
+  if (count >= 10000) return '${(count / 1000).toStringAsFixed(0)}k';
+  if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}k';
+  return count.toString();
+}
