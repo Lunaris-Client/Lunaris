@@ -378,4 +378,60 @@ class DiscourseApiClient {
     final topics = response.data['topics'] as List?;
     return topics ?? [];
   }
+
+  Future<Map<String, dynamic>> uploadFile(
+    String serverUrl,
+    String apiKey, {
+    required String filePath,
+    required String fileName,
+    String type = 'composer',
+  }) async {
+    final formData = FormData.fromMap({
+      'type': type,
+      'file': await MultipartFile.fromFile(filePath, filename: fileName),
+    });
+    final response = await _dio.post(
+      '$serverUrl/uploads.json',
+      data: formData,
+      options: Options(
+        headers: {'User-Api-Key': apiKey},
+        sendTimeout: const Duration(seconds: 120),
+        receiveTimeout: const Duration(seconds: 120),
+      ),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> searchUsers(
+    String serverUrl,
+    String apiKey, {
+    required String term,
+    bool includeGroups = true,
+  }) async {
+    final response = await _dio.get(
+      '$serverUrl/u/search/users.json',
+      queryParameters: {
+        'term': term,
+        'include_groups': includeGroups,
+      },
+      options: _authHeaders(apiKey),
+    );
+    return (response.data['users'] as List?) ?? [];
+  }
+
+  Future<Map<String, dynamic>> fetchPrivateMessages(
+    String serverUrl,
+    String apiKey, {
+    required String username,
+    int? page,
+  }) async {
+    final params = <String, dynamic>{};
+    if (page != null && page > 0) params['page'] = page;
+    final response = await _dio.get(
+      '$serverUrl/topics/private-messages/$username.json',
+      queryParameters: params.isEmpty ? null : params,
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
 }

@@ -27,6 +27,7 @@ class SidebarNavigation extends StatelessWidget {
       Icons.notifications_rounded,
       'Notifications',
     ),
+    (Icons.mail_outlined, Icons.mail_rounded, 'Messages'),
   ];
 
   @override

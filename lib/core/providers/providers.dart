@@ -7,6 +7,7 @@ import 'package:lunaris/core/storage/site_cache.dart';
 import 'package:lunaris/core/models/server_account.dart';
 import 'package:lunaris/core/models/site_data.dart';
 import 'package:lunaris/core/services/site_bootstrap_service.dart';
+import 'package:lunaris/core/services/upload_service.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError('Must be overridden at startup');
@@ -92,6 +93,13 @@ final siteBootstrapServiceProvider = Provider<SiteBootstrapService>((ref) {
     apiClient: ref.watch(discourseApiClientProvider),
     authService: ref.watch(authServiceProvider),
     cache: ref.watch(siteCacheProvider),
+  );
+});
+
+final uploadServiceProvider = Provider<UploadService>((ref) {
+  return UploadService(
+    ref.watch(discourseApiClientProvider),
+    ref.watch(authServiceProvider),
   );
 });
 

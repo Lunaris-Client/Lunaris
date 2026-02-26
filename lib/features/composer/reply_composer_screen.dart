@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lunaris/core/providers/draft_provider.dart';
 import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/core/providers/topic_detail_provider.dart';
+import 'package:lunaris/features/composer/composer_upload_mixin.dart';
 import 'package:lunaris/features/composer/markdown_toolbar.dart';
 
 class ReplyComposerScreen extends ConsumerStatefulWidget {
@@ -28,11 +29,17 @@ class ReplyComposerScreen extends ConsumerStatefulWidget {
       _ReplyComposerScreenState();
 }
 
-class _ReplyComposerScreenState extends ConsumerState<ReplyComposerScreen> {
+class _ReplyComposerScreenState extends ConsumerState<ReplyComposerScreen>
+    with ComposerUploadMixin {
   final _bodyController = TextEditingController();
   final _bodyFocus = FocusNode();
   bool _showPreview = false;
   bool _isSubmitting = false;
+
+  @override
+  TextEditingController get uploadBodyController => _bodyController;
+  @override
+  String get uploadServerUrl => widget.serverUrl;
 
   late final DraftParams _draftParams = DraftParams(
     serverUrl: widget.serverUrl,
@@ -176,7 +183,10 @@ class _ReplyComposerScreenState extends ConsumerState<ReplyComposerScreen> {
             controller: _bodyController,
             previewActive: _showPreview,
             onTogglePreview: () => setState(() => _showPreview = !_showPreview),
+            onAttachTap: showAttachPicker,
           ),
+          if (isUploading)
+            const LinearProgressIndicator(),
           if (widget.replyToUsername != null)
             Container(
               width: double.infinity,

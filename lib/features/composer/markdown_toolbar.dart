@@ -5,6 +5,7 @@ class MarkdownToolbar extends StatelessWidget {
   final bool showPreviewToggle;
   final bool previewActive;
   final VoidCallback? onTogglePreview;
+  final VoidCallback? onAttachTap;
 
   const MarkdownToolbar({
     super.key,
@@ -12,6 +13,7 @@ class MarkdownToolbar extends StatelessWidget {
     this.showPreviewToggle = true,
     this.previewActive = false,
     this.onTogglePreview,
+    this.onAttachTap,
   });
 
   void _wrap(String before, String after, {String placeholder = 'text'}) {
@@ -85,6 +87,12 @@ class MarkdownToolbar extends StatelessWidget {
               tooltip: 'Image',
               onTap: () => _wrap('![', '](url)', placeholder: 'alt text'),
             ),
+            if (onAttachTap != null)
+              _ToolbarButton(
+                icon: Icons.attach_file_rounded,
+                tooltip: 'Attach file',
+                onTap: onAttachTap,
+              ),
             _ToolbarButton(
               icon: Icons.format_quote_rounded,
               tooltip: 'Quote',

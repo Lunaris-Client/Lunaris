@@ -6,6 +6,7 @@ import 'package:lunaris/core/models/site_category.dart';
 import 'package:lunaris/core/providers/draft_provider.dart';
 import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/core/utils/color_utils.dart';
+import 'package:lunaris/features/composer/composer_upload_mixin.dart';
 import 'package:lunaris/features/composer/markdown_toolbar.dart';
 
 class NewTopicComposerScreen extends ConsumerStatefulWidget {
@@ -30,7 +31,8 @@ class NewTopicComposerScreen extends ConsumerStatefulWidget {
 }
 
 class _NewTopicComposerScreenState
-    extends ConsumerState<NewTopicComposerScreen> {
+    extends ConsumerState<NewTopicComposerScreen>
+    with ComposerUploadMixin {
   final _titleController = TextEditingController();
   final _bodyController = TextEditingController();
   final _tagController = TextEditingController();
@@ -43,6 +45,11 @@ class _NewTopicComposerScreenState
   Timer? _tagSearchTimer;
   List<dynamic> _similarTopics = [];
   Timer? _similarTimer;
+
+  @override
+  TextEditingController get uploadBodyController => _bodyController;
+  @override
+  String get uploadServerUrl => widget.serverUrl;
 
   late final DraftParams _draftParams = DraftParams(
     serverUrl: widget.serverUrl,
@@ -249,7 +256,10 @@ class _NewTopicComposerScreenState
             controller: _bodyController,
             previewActive: _showPreview,
             onTogglePreview: () => setState(() => _showPreview = !_showPreview),
+            onAttachTap: showAttachPicker,
           ),
+          if (isUploading)
+            const LinearProgressIndicator(),
           Expanded(
             child: _showPreview ? _buildPreview(theme) : _buildEditor(theme),
           ),
