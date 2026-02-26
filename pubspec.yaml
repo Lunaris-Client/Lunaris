@@ -65,7 +65,10 @@ flutter_launcher_icons:
 
 flutter_native_splash:
   color: "#1A1A2E"
-  image: "assets/branding/banner.png"
+  image: "assets/branding/logo_text.png"
   android: true
   ios: true
   web: true
+  android_12:
+    color: "#1A1A2E"
+    image: "assets/branding/logo_text.png"
