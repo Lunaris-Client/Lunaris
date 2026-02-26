@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+
+  <defs>
+    <!-- Deep space background -->
+    <radialGradient id="bg" cx="50%" cy="35%" r="75%">
+      <stop offset="0%" stop-color="#121A3F"/>
+      <stop offset="50%" stop-color="#070B1F"/>
+      <stop offset="100%" stop-color="#02030A"/>
+    </radialGradient>
+
+    <!-- Full moon gradient -->
+    <radialGradient id="moonGrad" cx="45%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#F2FBFF"/>
+      <stop offset="35%" stop-color="#C8F1FF"/>
+      <stop offset="70%" stop-color="#79D2FF"/>
+      <stop offset="100%" stop-color="#3D5CFF"/>
+    </radialGradient>
+
+    <!-- Soft crater shading -->
+    <radialGradient id="crater" cx="40%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#AEE7FF" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#3D5CFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Glow -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+
+  <!-- Subtle star field -->
+  <g fill="white" opacity="0.75">
+    <circle cx="150" cy="180" r="2"/>
+    <circle cx="880" cy="220" r="2"/>
+    <circle cx="260" cy="300" r="1.4"/>
+    <circle cx="820" cy="140" r="1.4"/>
+    <circle cx="760" cy="300" r="1.2"/>
+    <circle cx="300" cy="620" r="1.2"/>
+  </g>
+
+  <!-- Large Full Moon -->
+  <g filter="url(#glow)">
+    <circle cx="512" cy="430" r="300" fill="url(#moonGrad)"/>
+  </g>
+
+  <!-- Minimal non-overlapping craters -->
+  <circle cx="395" cy="390" r="62" fill="url(#crater)"/>
+  <circle cx="665" cy="470" r="78" fill="url(#crater)"/>
+  <circle cx="500" cy="605" r="52" fill="url(#crater)"/>
+
+</svg>
