@@ -24,6 +24,7 @@ import 'package:lunaris/features/composer/new_topic_composer_screen.dart';
 import 'package:lunaris/features/composer/pm_composer_screen.dart';
 import 'package:lunaris/features/messages/pm_inbox_view.dart';
 import 'package:lunaris/features/notifications/notification_list_view.dart';
+import 'package:lunaris/features/search/search_screen.dart';
 import 'package:lunaris/features/topic/topic_view_screen.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
@@ -132,6 +133,31 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     );
   }
 
+  void _openSearch(ServerAccount server) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SearchScreen(
+          serverUrl: server.serverUrl,
+          onTopicTap: (topicId) {
+            Navigator.of(context).pop();
+            _navigateToTopic(server, topicId);
+          },
+          onUserTap: (username) {
+            Navigator.of(context).pop();
+            _openUserProfile(server, username);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _openUserProfile(ServerAccount server, String username) {
+    context.push(
+      '/user/$username',
+      extra: UserProfileRouteExtra(serverUrl: server.serverUrl),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final server = ref.watch(activeServerProvider);
@@ -227,11 +253,19 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         automaticallyImplyLeading: breakpoint == LayoutBreakpoint.mobile,
         title: Text(server.siteName),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.search_rounded),
+            tooltip: 'Search',
+            onPressed: () => _openSearch(server),
+          ),
           if (_currentTab == 2) _buildMarkAllReadButton(server.serverUrl),
           Padding(
             padding: const EdgeInsets.only(right: 12),
-            child:
-                avatarUrl != null
+            child: GestureDetector(
+              onTap: server.username != null && server.username!.isNotEmpty
+                  ? () => _openUserProfile(server, server.username!)
+                  : null,
+              child: avatarUrl != null
                     ? CircleAvatar(
                       radius: 16,
                       backgroundImage: CachedNetworkImageProvider(avatarUrl),
@@ -245,6 +279,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                         color: theme.colorScheme.onPrimaryContainer,
                       ),
                     ),
+            ),
           ),
         ],
       ),

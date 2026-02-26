@@ -434,4 +434,74 @@ class DiscourseApiClient {
     );
     return response.data as Map<String, dynamic>;
   }
+
+  Future<Map<String, dynamic>> search(
+    String serverUrl,
+    String apiKey, {
+    required String query,
+    int? page,
+  }) async {
+    final params = <String, dynamic>{'q': query};
+    if (page != null && page > 0) params['page'] = page;
+    final response = await _dio.get(
+      '$serverUrl/search/query.json',
+      queryParameters: params,
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fetchUserProfile(
+    String serverUrl,
+    String apiKey, {
+    required String username,
+  }) async {
+    final response = await _dio.get(
+      '$serverUrl/u/$username.json',
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fetchUserSummary(
+    String serverUrl,
+    String apiKey, {
+    required String username,
+  }) async {
+    final response = await _dio.get(
+      '$serverUrl/u/$username/summary.json',
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> fetchUserBadges(
+    String serverUrl,
+    String apiKey, {
+    required String username,
+  }) async {
+    final response = await _dio.get(
+      '$serverUrl/u/$username/badges.json',
+      options: _authHeaders(apiKey),
+    );
+    return (response.data['badges'] as List?) ?? [];
+  }
+
+  Future<List<dynamic>> fetchUserActions(
+    String serverUrl,
+    String apiKey, {
+    required String username,
+    int? offset,
+    int? filterActionType,
+  }) async {
+    final params = <String, dynamic>{'username': username};
+    if (offset != null) params['offset'] = offset;
+    if (filterActionType != null) params['filter'] = filterActionType;
+    final response = await _dio.get(
+      '$serverUrl/user_actions.json',
+      queryParameters: params,
+      options: _authHeaders(apiKey),
+    );
+    return (response.data['user_actions'] as List?) ?? [];
+  }
 }

@@ -8,3 +8,5 @@ export 'topic.dart';
 export 'post.dart';
 export 'topic_detail.dart';
 export 'discourse_notification.dart';
+export 'search_result.dart';
+export 'user_profile.dart';
