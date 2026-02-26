@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:app_links/app_links.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lunaris/core/models/models.dart';
@@ -22,7 +21,8 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 enum _LoginState { idle, generatingKeys, waitingForBrowser, verifying, done, error }
 
-class _LoginScreenState extends ConsumerState<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen>
+    with WidgetsBindingObserver {
   _LoginState _state = _LoginState.idle;
   String? _error;
   CurrentUser? _currentUser;
@@ -32,9 +32,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       (Platform.isLinux || Platform.isWindows || Platform.isMacOS);
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void dispose() {
-    ref.read(authServiceProvider).clearPendingSession();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        _state == _LoginState.waitingForBrowser &&
+        !_isDesktop) {
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted && _state == _LoginState.waitingForBrowser) {
+          setState(() => _state = _LoginState.idle);
+        }
+      });
+    }
   }
 
   Future<void> _startAuth() async {
@@ -64,12 +83,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
-      Map<String, String> callbackParams;
-      if (_isDesktop) {
-        callbackParams = await authService.waitForDesktopCallback();
-      } else {
-        callbackParams = await _waitForDeepLink();
+      if (!_isDesktop) {
+        return;
       }
+
+      Map<String, String> callbackParams;
+      callbackParams = await authService.waitForDesktopCallback();
 
       final payload = callbackParams['payload'];
       if (payload == null || payload.isEmpty) {
@@ -132,14 +151,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _error = 'Authentication failed: $e';
       });
     }
-  }
-
-  Future<Map<String, String>> _waitForDeepLink() async {
-    final appLinks = AppLinks();
-    final uri = await appLinks.uriLinkStream.firstWhere(
-      (uri) => uri.scheme == 'lunaris' && uri.host == 'auth_redirect',
-    );
-    return uri.queryParameters;
   }
 
   @override

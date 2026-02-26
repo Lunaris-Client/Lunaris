@@ -85,6 +85,12 @@ class AuthService {
       redirectUrl: redirectUrl,
     );
 
+    await _persistPendingMetadata(
+      serverUrl: serverUrl,
+      clientId: clientId,
+      nonce: nonce,
+    );
+
     final params = {
       'client_id': clientId,
       'application_name': _appName,
@@ -142,9 +148,48 @@ class AuthService {
     if (_pendingSession != null) {
       await _storage.delete(
           key: 'auth_private_key_${_pendingSession!.clientId}');
-      _pendingSession = null;
+    } else {
+      final clientId = await _storage.read(key: 'pending_auth_client_id');
+      if (clientId != null) {
+        await _storage.delete(key: 'auth_private_key_$clientId');
+      }
     }
+    _pendingSession = null;
+    await _storage.delete(key: 'pending_auth_server_url');
+    await _storage.delete(key: 'pending_auth_client_id');
+    await _storage.delete(key: 'pending_auth_nonce');
     await stopDesktopServer();
+  }
+
+  Future<AuthSession?> restorePendingSession() async {
+    final serverUrl = await _storage.read(key: 'pending_auth_server_url');
+    final clientId = await _storage.read(key: 'pending_auth_client_id');
+    final nonce = await _storage.read(key: 'pending_auth_nonce');
+    if (serverUrl == null || clientId == null || nonce == null) return null;
+
+    final privateKeyPem = await _storage.read(key: 'auth_private_key_$clientId');
+    if (privateKeyPem == null) return null;
+
+    final privateKey = RsaKeyHelper.decodePrivateKeyFromPem(privateKeyPem);
+    _pendingSession = AuthSession(
+      serverUrl: serverUrl,
+      clientId: clientId,
+      nonce: nonce,
+      publicKey: RSAPublicKey(BigInt.zero, BigInt.zero),
+      privateKey: privateKey,
+      redirectUrl: '',
+    );
+    return _pendingSession;
+  }
+
+  Future<void> _persistPendingMetadata({
+    required String serverUrl,
+    required String clientId,
+    required String nonce,
+  }) async {
+    await _storage.write(key: 'pending_auth_server_url', value: serverUrl);
+    await _storage.write(key: 'pending_auth_client_id', value: clientId);
+    await _storage.write(key: 'pending_auth_nonce', value: nonce);
   }
 
   /// On desktop, spin up a temporary localhost HTTP server to receive

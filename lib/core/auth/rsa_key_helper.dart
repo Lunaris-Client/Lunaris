@@ -63,6 +63,22 @@ class RsaKeyHelper {
     return _wrapPem('RSA PRIVATE KEY', encoded);
   }
 
+  static RSAPrivateKey decodePrivateKeyFromPem(String pem) {
+    final stripped = pem
+        .replaceAll('-----BEGIN RSA PRIVATE KEY-----', '')
+        .replaceAll('-----END RSA PRIVATE KEY-----', '')
+        .replaceAll(RegExp(r'\s'), '');
+    final bytes = base64Decode(stripped);
+    final parser = ASN1Parser(Uint8List.fromList(bytes));
+    final seq = parser.nextObject() as ASN1Sequence;
+    final elements = seq.elements;
+    final modulus = (elements[1] as ASN1Integer).valueAsBigInteger;
+    final privateExponent = (elements[3] as ASN1Integer).valueAsBigInteger;
+    final p = (elements[4] as ASN1Integer).valueAsBigInteger;
+    final q = (elements[5] as ASN1Integer).valueAsBigInteger;
+    return RSAPrivateKey(modulus, privateExponent, p, q);
+  }
+
   static Uint8List decrypt(RSAPrivateKey privateKey, Uint8List encrypted) {
     final cipher = PKCS1Encoding(RSAEngine())
       ..init(false, PrivateKeyParameter<RSAPrivateKey>(privateKey));
