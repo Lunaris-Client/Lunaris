@@ -62,6 +62,18 @@ class DiscourseApiClient {
     );
   }
 
+  Future<Map<String, dynamic>> fetchSiteData(
+      String serverUrl, String apiKey) async {
+    final response = await _dio.get(
+      '$serverUrl/site.json',
+      options: Options(
+        headers: {'User-Api-Key': apiKey},
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
   String? _resolveUrl(String baseUrl, String? path) {
     if (path == null || path.isEmpty) return null;
     if (path.startsWith('http')) return path;

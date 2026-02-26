@@ -3,7 +3,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lunaris/core/api/discourse_api_client.dart';
 import 'package:lunaris/core/auth/auth_service.dart';
 import 'package:lunaris/core/storage/server_storage.dart';
+import 'package:lunaris/core/storage/site_cache.dart';
 import 'package:lunaris/core/models/server_account.dart';
+import 'package:lunaris/core/models/site_data.dart';
+import 'package:lunaris/core/services/site_bootstrap_service.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError('Must be overridden at startup');
@@ -79,3 +82,34 @@ final activeServerProvider = Provider<ServerAccount?>((ref) {
     return null;
   }
 });
+
+final siteCacheProvider = Provider<SiteCache>((ref) {
+  return SiteCache();
+});
+
+final siteBootstrapServiceProvider = Provider<SiteBootstrapService>((ref) {
+  return SiteBootstrapService(
+    apiClient: ref.watch(discourseApiClientProvider),
+    authService: ref.watch(authServiceProvider),
+    cache: ref.watch(siteCacheProvider),
+  );
+});
+
+final siteDataProvider =
+    AsyncNotifierProvider.family<SiteDataNotifier, SiteData?, String>(
+  SiteDataNotifier.new,
+);
+
+class SiteDataNotifier extends FamilyAsyncNotifier<SiteData?, String> {
+  @override
+  Future<SiteData?> build(String arg) async {
+    final service = ref.read(siteBootstrapServiceProvider);
+    return service.bootstrap(arg);
+  }
+
+  Future<void> refresh() async {
+    final service = ref.read(siteBootstrapServiceProvider);
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => service.fetchAndCache(arg));
+  }
+}

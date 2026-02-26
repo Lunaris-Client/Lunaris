@@ -27,6 +27,7 @@ dependencies:
   pointycastle: ^3.9.1
   app_links: ^6.3.3
   asn1lib: ^1.5.8
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
