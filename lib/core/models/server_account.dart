@@ -12,7 +12,6 @@ class ServerAccount with _$ServerAccount {
     String? siteLogoUrl,
     String? siteDescription,
     String? faviconUrl,
-    String? apiKey,
     String? clientId,
     String? username,
     int? userId,

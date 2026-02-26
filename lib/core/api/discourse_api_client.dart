@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:lunaris/core/models/server_info.dart';
+import 'package:lunaris/core/models/models.dart';
 
 class DiscourseApiClient {
   late final Dio _dio;
@@ -13,7 +13,7 @@ class DiscourseApiClient {
         ));
   }
 
-  String _normalizeUrl(String url) {
+  String normalizeUrl(String url) {
     var normalized = url.trim();
     if (!normalized.startsWith('http://') &&
         !normalized.startsWith('https://')) {
@@ -26,7 +26,7 @@ class DiscourseApiClient {
   }
 
   Future<ServerInfo> probeServer(String rawUrl) async {
-    final url = _normalizeUrl(rawUrl);
+    final url = normalizeUrl(rawUrl);
 
     final response = await _dio.get('$url/site/basic-info.json');
     final data = response.data as Map<String, dynamic>;
@@ -41,6 +41,24 @@ class DiscourseApiClient {
       logoUrl: _resolveUrl(url, logoUrl),
       faviconUrl: _resolveUrl(url, faviconUrl),
       version: data['version'] as String?,
+    );
+  }
+
+  Future<CurrentUser> fetchCurrentUser(
+      String serverUrl, String apiKey) async {
+    final response = await _dio.get(
+      '$serverUrl/session/current.json',
+      options: Options(headers: {'User-Api-Key': apiKey}),
+    );
+    final data = response.data as Map<String, dynamic>;
+    final userData = data['current_user'] as Map<String, dynamic>;
+    return CurrentUser.fromJson(userData);
+  }
+
+  Future<void> revokeApiKey(String serverUrl, String apiKey) async {
+    await _dio.post(
+      '$serverUrl/user-api-key/revoke',
+      options: Options(headers: {'User-Api-Key': apiKey}),
     );
   }
 

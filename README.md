@@ -82,6 +82,23 @@ flutter build ios
 # output: build/ios/iphoneos/Runner.app
 ```
 
+## Discourse Server Configuration
+
+A Discourse admin must allow Lunaris redirect URLs before users can authenticate.
+
+1. Open your Discourse admin panel: **Admin > Settings > Security**
+2. Find the `allowed user api auth redirects` setting
+3. Add both values (pipe-separated):
+
+```
+http://localhost:*/auth_callback|lunaris://auth_redirect
+```
+
+- `http://localhost:*/auth_callback` — used by desktop apps (Linux, macOS, Windows) which spin up a temporary local server to receive the auth callback
+- `lunaris://auth_redirect` — used by mobile apps (iOS, Android) via deep linking
+
+Without these entries, Discourse will reject the redirect after a user approves access.
+
 ## Verify Environment
 
 Run `flutter doctor` to check that all required tooling is installed and configured for your target platforms.

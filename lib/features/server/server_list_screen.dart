@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:lunaris/core/models/server_account.dart';
 import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/features/server/add_server_screen.dart';
+import 'package:lunaris/features/auth/login_screen.dart';
 
 class ServerListScreen extends ConsumerWidget {
   const ServerListScreen({super.key});
@@ -43,9 +44,8 @@ class ServerListScreen extends ConsumerWidget {
 
   void _onServerTap(BuildContext context, ServerAccount account) {
     if (!account.isAuthenticated) {
-      // TODO: navigate to auth flow
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Tap to log in to ${account.siteName}')),
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => LoginScreen(account: account)),
       );
       return;
     }

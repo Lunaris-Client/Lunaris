@@ -24,6 +24,9 @@ dependencies:
   flutter_svg: ^2.0.17
   timeago: ^3.7.0
   cupertino_icons: ^1.0.8
+  pointycastle: ^3.9.1
+  app_links: ^6.3.3
+  asn1lib: ^1.5.8
 
 dev_dependencies:
   flutter_test:
