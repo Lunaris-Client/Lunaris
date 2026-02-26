@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lunaris/core/layout/breakpoints.dart';
+import 'package:lunaris/core/models/server_account.dart';
 import 'package:lunaris/core/models/site_category.dart';
 import 'package:lunaris/core/models/site_data.dart';
+import 'package:lunaris/core/models/topic.dart';
 import 'package:lunaris/core/providers/providers.dart';
-import 'package:lunaris/features/home/server_switcher_drawer.dart';
-import 'package:lunaris/features/feed/topic_list_view.dart';
-import 'package:lunaris/features/feed/feed_filter_bar.dart';
-import 'package:lunaris/features/feed/category_filter_sheet.dart';
-import 'package:lunaris/features/feed/tag_filter_sheet.dart';
+import 'package:lunaris/core/utils/color_utils.dart';
 import 'package:lunaris/features/categories/category_browser_view.dart';
+import 'package:lunaris/features/feed/feed_filter_bar.dart';
+import 'package:lunaris/features/feed/topic_list_view.dart';
+import 'package:lunaris/features/home/detail_panel.dart';
+import 'package:lunaris/features/home/server_switcher_drawer.dart';
+import 'package:lunaris/features/home/sidebar_navigation.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
@@ -23,64 +27,51 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   int _currentTab = 0;
   String _activeFilter = 'latest';
   SiteCategory? _selectedCategory;
-  String? _selectedTag;
   String _selectedPeriod = 'all';
+  Topic? _selectedTopic;
+
+  void _onTabChanged(int index) {
+    if (index == _currentTab) return;
+    setState(() {
+      _currentTab = index;
+      _selectedTopic = null;
+    });
+  }
 
   void _onFilterChanged(String filter) {
     if (filter == _activeFilter) return;
-    setState(() => _activeFilter = filter);
+    setState(() {
+      _activeFilter = filter;
+      _selectedTopic = null;
+    });
   }
 
   void _onPeriodChanged(String period) {
     if (period == _selectedPeriod) return;
-    setState(() => _selectedPeriod = period);
+    setState(() {
+      _selectedPeriod = period;
+      _selectedTopic = null;
+    });
+  }
+
+  void _onTopicSelected(Topic topic) {
+    setState(() => _selectedTopic = topic);
   }
 
   void _onCategoryBrowseSelected(SiteCategory category) {
     setState(() {
       _selectedCategory = category;
-      _selectedTag = null;
       _activeFilter = 'latest';
+      _selectedTopic = null;
       _currentTab = 0;
     });
-  }
-
-  Future<void> _showCategorySheet(List<SiteCategory> categories) async {
-    final result = await showModalBottomSheet<dynamic>(
-      context: context,
-      isScrollControlled: true,
-      builder:
-          (_) => CategoryFilterSheet(
-            categories: categories,
-            selected: _selectedCategory,
-          ),
-    );
-    if (!mounted) return;
-    if (result == 'clear') {
-      setState(() => _selectedCategory = null);
-    } else if (result is SiteCategory) {
-      setState(() => _selectedCategory = result);
-    }
-  }
-
-  Future<void> _showTagSheet(List<String> tags) async {
-    final result = await showModalBottomSheet<dynamic>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => TagFilterSheet(tags: tags, selected: _selectedTag),
-    );
-    if (!mounted) return;
-    if (result == 'clear') {
-      setState(() => _selectedTag = null);
-    } else if (result is String) {
-      setState(() => _selectedTag = result);
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final server = ref.watch(activeServerProvider);
     final theme = Theme.of(context);
+    final breakpoint = layoutBreakpointOf(MediaQuery.sizeOf(context).width);
 
     if (server == null || !server.isAuthenticated) {
       WidgetsBinding.instance.addPostFrameCallback((_) => context.go('/'));
@@ -100,11 +91,12 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
     final avatarUrl =
         server.avatarTemplate != null
-            ? '${server.serverUrl}${server.avatarTemplate!.replaceAll('{size}', '40')}'
+            ? resolveAvatarUrl(server.serverUrl, server.avatarTemplate!, size: 40)
             : null;
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: breakpoint == LayoutBreakpoint.mobile,
         title: Text(server.siteName),
         actions: [
           Padding(
@@ -143,30 +135,68 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           if (siteData == null) {
             return const Center(child: CircularProgressIndicator());
           }
-          return _currentTab == 0
-              ? _buildFeedTab(siteData, server.serverUrl)
-              : CategoryBrowserView(
-                siteData: siteData,
-                onCategorySelected: _onCategoryBrowseSelected,
-              );
+          return _buildResponsiveBody(breakpoint, siteData, server);
         },
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentTab,
-        onDestinationSelected: (i) => setState(() => _currentTab = i),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.forum_outlined),
-            selectedIcon: Icon(Icons.forum_rounded),
-            label: 'Feed',
+      bottomNavigationBar: breakpoint == LayoutBreakpoint.mobile
+          ? NavigationBar(
+              selectedIndex: _currentTab,
+              onDestinationSelected: _onTabChanged,
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.forum_outlined),
+                  selectedIcon: Icon(Icons.forum_rounded),
+                  label: 'Feed',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.category_outlined),
+                  selectedIcon: Icon(Icons.category_rounded),
+                  label: 'Categories',
+                ),
+              ],
+            )
+          : null,
+    );
+  }
+
+  Widget _buildResponsiveBody(
+    LayoutBreakpoint breakpoint,
+    SiteData siteData,
+    ServerAccount server,
+  ) {
+    final content = _currentTab == 0
+        ? _buildFeedTab(siteData, server.serverUrl)
+        : CategoryBrowserView(
+            siteData: siteData,
+            onCategorySelected: _onCategoryBrowseSelected,
+          );
+
+    if (breakpoint == LayoutBreakpoint.mobile) return content;
+
+    final categoriesById = {for (final c in siteData.categories) c.id: c};
+
+    return Row(
+      children: [
+        SidebarNavigation(
+          selectedIndex: _currentTab,
+          onDestinationSelected: _onTabChanged,
+          extended: breakpoint == LayoutBreakpoint.desktop,
+          activeServer:
+              breakpoint == LayoutBreakpoint.desktop ? server : null,
+        ),
+        const VerticalDivider(width: 1),
+        Expanded(flex: 2, child: content),
+        const VerticalDivider(width: 1),
+        Expanded(
+          flex: 3,
+          child: DetailPanel(
+            selectedTopic: _selectedTopic,
+            category: _selectedTopic != null
+                ? categoriesById[_selectedTopic!.categoryId]
+                : null,
           ),
-          NavigationDestination(
-            icon: Icon(Icons.category_outlined),
-            selectedIcon: Icon(Icons.category_rounded),
-            label: 'Categories',
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -180,25 +210,20 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           activePeriod: _selectedPeriod,
           onPeriodChanged: _onPeriodChanged,
           periods: siteData.periods,
-          activeCategory: _selectedCategory,
-          onCategoryTap: () => _showCategorySheet(siteData.categories),
-          onCategoryClear: () => setState(() => _selectedCategory = null),
-          activeTag: _selectedTag,
-          onTagTap: () => _showTagSheet(siteData.topTags),
-          onTagClear: () => setState(() => _selectedTag = null),
         ),
         Expanded(
           child: TopicListView(
             key: ValueKey(
-              '$_activeFilter-${_selectedCategory?.id}-$_selectedTag-$effectivePeriod',
+              '$_activeFilter-${_selectedCategory?.id}-$effectivePeriod',
             ),
             serverUrl: serverUrl,
             siteData: siteData,
             filter: _activeFilter,
             categoryId: _selectedCategory?.id,
             categorySlug: _selectedCategory?.slug,
-            tagName: _selectedTag,
             period: effectivePeriod,
+            onTopicSelected: _onTopicSelected,
+            selectedTopicId: _selectedTopic?.id,
           ),
         ),
       ],

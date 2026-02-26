@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lunaris/core/models/site_data.dart';
 import 'package:lunaris/core/models/site_category.dart';
+import 'package:lunaris/core/models/topic.dart';
 import 'package:lunaris/core/providers/topic_list_provider.dart';
 import 'package:lunaris/features/feed/topic_card.dart';
 
@@ -13,6 +14,8 @@ class TopicListView extends ConsumerStatefulWidget {
   final String? categorySlug;
   final String? tagName;
   final String? period;
+  final ValueChanged<Topic>? onTopicSelected;
+  final int? selectedTopicId;
 
   const TopicListView({
     super.key,
@@ -23,6 +26,8 @@ class TopicListView extends ConsumerStatefulWidget {
     this.categorySlug,
     this.tagName,
     this.period,
+    this.onTopicSelected,
+    this.selectedTopicId,
   });
 
   @override
@@ -31,7 +36,7 @@ class TopicListView extends ConsumerStatefulWidget {
 
 class _TopicListViewState extends ConsumerState<TopicListView> {
   final _scrollController = ScrollController();
-  late final Map<int, SiteCategory> _categoriesById = {
+  late Map<int, SiteCategory> _categoriesById = {
     for (final cat in widget.siteData.categories) cat.id: cat,
   };
 
@@ -48,6 +53,16 @@ class _TopicListViewState extends ConsumerState<TopicListView> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void didUpdateWidget(covariant TopicListView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.siteData != widget.siteData) {
+      _categoriesById = {
+        for (final cat in widget.siteData.categories) cat.id: cat,
+      };
+    }
   }
 
   @override
@@ -153,6 +168,10 @@ class _TopicListViewState extends ConsumerState<TopicListView> {
             topic: topic,
             category: _categoriesById[topic.categoryId],
             serverUrl: widget.serverUrl,
+            onTap: widget.onTopicSelected != null
+                ? () => widget.onTopicSelected!(topic)
+                : null,
+            selected: widget.selectedTopicId == topic.id,
           );
         },
       ),

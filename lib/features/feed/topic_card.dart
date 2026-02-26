@@ -10,6 +10,7 @@ class TopicCard extends StatelessWidget {
   final SiteCategory? category;
   final String serverUrl;
   final VoidCallback? onTap;
+  final bool selected;
 
   const TopicCard({
     super.key,
@@ -17,6 +18,7 @@ class TopicCard extends StatelessWidget {
     this.category,
     required this.serverUrl,
     this.onTap,
+    this.selected = false,
   });
 
   bool get _hasUnread =>
@@ -29,25 +31,30 @@ class TopicCard extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(theme),
-            const SizedBox(height: 6),
-            _buildTitle(theme),
-            if (topic.excerpt != null && topic.excerpt!.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              _buildExcerpt(theme),
+      child: Container(
+        color: selected
+            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(theme),
+              const SizedBox(height: 6),
+              _buildTitle(theme),
+              if (topic.excerpt != null && topic.excerpt!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                _buildExcerpt(theme),
+              ],
+              if (topic.tags.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _buildTags(theme),
+              ],
+              const SizedBox(height: 10),
+              _buildFooter(theme),
             ],
-            if (topic.tags.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _buildTags(theme),
-            ],
-            const SizedBox(height: 10),
-            _buildFooter(theme),
-          ],
+          ),
         ),
       ),
     );
@@ -239,10 +246,7 @@ class _AvatarRow extends StatelessWidget {
         children:
             posters.map((poster) {
               final template = poster.user!.avatarTemplate;
-              final url =
-                  template.startsWith('http')
-                      ? template.replaceAll('{size}', '48')
-                      : '$serverUrl${template.replaceAll('{size}', '48')}';
+              final url = resolveAvatarUrl(serverUrl, template, size: 48);
 
               return Padding(
                 padding: const EdgeInsets.only(right: 2),

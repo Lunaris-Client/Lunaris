@@ -29,3 +29,9 @@ String formatCount(int count) {
   if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}k';
   return count.toString();
 }
+
+String resolveAvatarUrl(String serverUrl, String template, {int size = 48}) {
+  final resolved = template.replaceAll('{size}', '$size');
+  if (resolved.startsWith('http')) return resolved;
+  return '$serverUrl$resolved';
+}
