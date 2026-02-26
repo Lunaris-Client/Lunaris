@@ -269,4 +269,28 @@ class DiscourseApiClient {
       options: _authHeaders(apiKey),
     );
   }
+
+  Future<Map<String, dynamic>> fetchNotifications(
+    String serverUrl,
+    String apiKey, {
+    bool recent = true,
+    int? filterType,
+  }) async {
+    final params = <String, dynamic>{};
+    if (recent) params['recent'] = true;
+    if (filterType != null) params['filter_type'] = filterType;
+    final response = await _dio.get(
+      '$serverUrl/notifications.json',
+      queryParameters: params.isEmpty ? null : params,
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<void> markNotificationsRead(String serverUrl, String apiKey) async {
+    await _dio.put(
+      '$serverUrl/notifications/mark-read',
+      options: _authHeaders(apiKey),
+    );
+  }
 }

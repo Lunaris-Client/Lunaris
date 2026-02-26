@@ -16,6 +16,8 @@ import 'package:lunaris/features/feed/topic_list_view.dart';
 import 'package:lunaris/features/home/detail_panel.dart';
 import 'package:lunaris/features/home/server_switcher_drawer.dart';
 import 'package:lunaris/features/home/sidebar_navigation.dart';
+import 'package:lunaris/core/providers/notification_provider.dart';
+import 'package:lunaris/features/notifications/notification_list_view.dart';
 import 'package:lunaris/features/topic/topic_view_screen.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
@@ -62,9 +64,10 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       final server = ref.read(activeServerProvider);
       if (server == null) return;
       final siteAsync = ref.read(siteDataProvider(server.serverUrl));
-      final categoriesById = siteAsync.valueOrNull != null
-          ? {for (final c in siteAsync.valueOrNull!.categories) c.id: c}
-          : null;
+      final categoriesById =
+          siteAsync.valueOrNull != null
+              ? {for (final c in siteAsync.valueOrNull!.categories) c.id: c}
+              : null;
       context.push(
         '/topic/${topic.id}',
         extra: TopicRouteExtra(
@@ -111,7 +114,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
     final avatarUrl =
         server.avatarTemplate != null
-            ? resolveAvatarUrl(server.serverUrl, server.avatarTemplate!, size: 40)
+            ? resolveAvatarUrl(
+              server.serverUrl,
+              server.avatarTemplate!,
+              size: 40,
+            )
             : null;
 
     return Scaffold(
@@ -119,6 +126,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         automaticallyImplyLeading: breakpoint == LayoutBreakpoint.mobile,
         title: Text(server.siteName),
         actions: [
+          if (_currentTab == 2) _buildMarkAllReadButton(server.serverUrl),
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child:
@@ -158,24 +166,30 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           return _buildResponsiveBody(breakpoint, siteData, server);
         },
       ),
-      bottomNavigationBar: breakpoint == LayoutBreakpoint.mobile
-          ? NavigationBar(
-              selectedIndex: _currentTab,
-              onDestinationSelected: _onTabChanged,
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.forum_outlined),
-                  selectedIcon: Icon(Icons.forum_rounded),
-                  label: 'Feed',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.category_outlined),
-                  selectedIcon: Icon(Icons.category_rounded),
-                  label: 'Categories',
-                ),
-              ],
-            )
-          : null,
+      bottomNavigationBar:
+          breakpoint == LayoutBreakpoint.mobile
+              ? NavigationBar(
+                selectedIndex: _currentTab,
+                onDestinationSelected: _onTabChanged,
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.forum_outlined),
+                    selectedIcon: Icon(Icons.forum_rounded),
+                    label: 'Feed',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.category_outlined),
+                    selectedIcon: Icon(Icons.category_rounded),
+                    label: 'Categories',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.notifications_outlined),
+                    selectedIcon: Icon(Icons.notifications_rounded),
+                    label: 'Notifications',
+                  ),
+                ],
+              )
+              : null,
     );
   }
 
@@ -184,12 +198,18 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     SiteData siteData,
     ServerAccount server,
   ) {
-    final content = _currentTab == 0
-        ? _buildFeedTab(siteData, server.serverUrl)
-        : CategoryBrowserView(
-            siteData: siteData,
-            onCategorySelected: _onCategoryBrowseSelected,
-          );
+    final Widget content;
+    switch (_currentTab) {
+      case 1:
+        content = CategoryBrowserView(
+          siteData: siteData,
+          onCategorySelected: _onCategoryBrowseSelected,
+        );
+      case 2:
+        content = _buildNotificationsTab(server);
+      default:
+        content = _buildFeedTab(siteData, server.serverUrl);
+    }
 
     if (breakpoint == LayoutBreakpoint.mobile) return content;
 
@@ -201,24 +221,24 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           selectedIndex: _currentTab,
           onDestinationSelected: _onTabChanged,
           extended: breakpoint == LayoutBreakpoint.desktop,
-          activeServer:
-              breakpoint == LayoutBreakpoint.desktop ? server : null,
+          activeServer: breakpoint == LayoutBreakpoint.desktop ? server : null,
         ),
         const VerticalDivider(width: 1),
         Expanded(flex: 2, child: content),
         const VerticalDivider(width: 1),
         Expanded(
           flex: 3,
-          child: _selectedTopic != null
-              ? TopicViewScreen(
-                  key: ValueKey(_selectedTopic!.id),
-                  serverUrl: server.serverUrl,
-                  topicId: _selectedTopic!.id,
-                  topicTitle: _selectedTopic!.title,
-                  categoriesById: categoriesById,
-                  embedded: true,
-                )
-              : const DetailPanel(),
+          child:
+              _selectedTopic != null
+                  ? TopicViewScreen(
+                    key: ValueKey(_selectedTopic!.id),
+                    serverUrl: server.serverUrl,
+                    topicId: _selectedTopic!.id,
+                    topicTitle: _selectedTopic!.title,
+                    categoriesById: categoriesById,
+                    embedded: true,
+                  )
+                  : const DetailPanel(),
         ),
       ],
     );
@@ -251,6 +271,52 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildNotificationsTab(ServerAccount server) {
+    return NotificationListView(
+      serverUrl: server.serverUrl,
+      onNotificationTap: (topicId, postNumber) {
+        _navigateToTopic(server, topicId);
+      },
+    );
+  }
+
+  Widget _buildMarkAllReadButton(String serverUrl) {
+    final state = ref.watch(notificationListProvider(serverUrl));
+    final notifier = ref.read(notificationListProvider(serverUrl).notifier);
+    if (state.unreadCount == 0) return const SizedBox.shrink();
+    if (state.isMarkingRead) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    return IconButton(
+      icon: const Icon(Icons.done_all_rounded),
+      tooltip: 'Mark all read',
+      onPressed: () => notifier.markAllRead(),
+    );
+  }
+
+  void _navigateToTopic(ServerAccount server, int topicId) {
+    final siteAsync = ref.read(siteDataProvider(server.serverUrl));
+    final categoriesById =
+        siteAsync.valueOrNull != null
+            ? {for (final c in siteAsync.valueOrNull!.categories) c.id: c}
+            : null;
+
+    context.push(
+      '/topic/$topicId',
+      extra: TopicRouteExtra(
+        serverUrl: server.serverUrl,
+        categoriesById: categoriesById,
+      ),
     );
   }
 }

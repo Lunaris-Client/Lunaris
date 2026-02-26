@@ -7,3 +7,4 @@ export 'site_group.dart';
 export 'topic.dart';
 export 'post.dart';
 export 'topic_detail.dart';
+export 'discourse_notification.dart';

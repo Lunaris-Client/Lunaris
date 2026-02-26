@@ -20,6 +20,11 @@ class SidebarNavigation extends StatelessWidget {
   static const _destinations = [
     (Icons.forum_outlined, Icons.forum_rounded, 'Feed'),
     (Icons.category_outlined, Icons.category_rounded, 'Categories'),
+    (
+      Icons.notifications_outlined,
+      Icons.notifications_rounded,
+      'Notifications',
+    ),
   ];
 
   @override
@@ -84,10 +89,7 @@ class _SidebarHeader extends StatelessWidget {
   final ServerAccount? activeServer;
   final VoidCallback onMenuTap;
 
-  const _SidebarHeader({
-    required this.activeServer,
-    required this.onMenuTap,
-  });
+  const _SidebarHeader({required this.activeServer, required this.onMenuTap});
 
   @override
   Widget build(BuildContext context) {
@@ -108,8 +110,9 @@ class _SidebarHeader extends StatelessWidget {
             Expanded(
               child: Text(
                 'Lunaris',
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             IconButton(
@@ -122,9 +125,14 @@ class _SidebarHeader extends StatelessWidget {
       );
     }
 
-    final avatarUrl = server.avatarTemplate != null
-        ? resolveAvatarUrl(server.serverUrl, server.avatarTemplate!, size: 80)
-        : null;
+    final avatarUrl =
+        server.avatarTemplate != null
+            ? resolveAvatarUrl(
+              server.serverUrl,
+              server.avatarTemplate!,
+              size: 80,
+            )
+            : null;
 
     return InkWell(
       onTap: onMenuTap,
@@ -154,8 +162,9 @@ class _SidebarHeader extends StatelessWidget {
                 children: [
                   Text(
                     server.username ?? 'Unknown',
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
@@ -202,9 +211,10 @@ class _NavItem extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: Material(
-        color: selected
-            ? theme.colorScheme.secondaryContainer
-            : Colors.transparent,
+        color:
+            selected
+                ? theme.colorScheme.secondaryContainer
+                : Colors.transparent,
         borderRadius: BorderRadius.circular(28),
         child: InkWell(
           borderRadius: BorderRadius.circular(28),
@@ -216,17 +226,19 @@ class _NavItem extends StatelessWidget {
                 Icon(
                   selected ? selectedIcon : icon,
                   size: 24,
-                  color: selected
-                      ? theme.colorScheme.onSecondaryContainer
-                      : theme.colorScheme.onSurfaceVariant,
+                  color:
+                      selected
+                          ? theme.colorScheme.onSecondaryContainer
+                          : theme.colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 12),
                 Text(
                   label,
                   style: theme.textTheme.labelLarge?.copyWith(
-                    color: selected
-                        ? theme.colorScheme.onSecondaryContainer
-                        : theme.colorScheme.onSurfaceVariant,
+                    color:
+                        selected
+                            ? theme.colorScheme.onSecondaryContainer
+                            : theme.colorScheme.onSurfaceVariant,
                     fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                   ),
                 ),
