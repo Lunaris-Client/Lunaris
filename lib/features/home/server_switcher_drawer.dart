@@ -107,6 +107,22 @@ class ServerSwitcherDrawer extends ConsumerWidget {
                 context.push('/settings/theme');
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.storage_outlined),
+              title: const Text('Cache & Offline'),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/settings/cache');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.lock_outlined),
+              title: const Text('Security'),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/settings/security');
+              },
+            ),
             if (activeServer != null)
               ListTile(
                 leading: Icon(

@@ -16,7 +16,10 @@ import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/core/providers/theme_settings_provider.dart';
 import 'package:lunaris/core/services/background_notification_service.dart';
 import 'package:lunaris/core/services/local_notification_service.dart';
+import 'package:lunaris/core/services/window_state_service.dart';
+import 'package:lunaris/core/services/desktop_tray_service.dart';
 import 'package:lunaris/ui/theme/lunaris_theme.dart';
+import 'package:lunaris/ui/widgets/biometric_lock_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +27,13 @@ void main() async {
   await LocalNotificationService().initialize();
   await BackgroundNotificationService.initialize();
   await BackgroundNotificationService.register();
+
+  if (WindowStateService.isSupported) {
+    await WindowStateService().init();
+  }
+  if (DesktopTrayService.isSupported) {
+    await DesktopTrayService().init();
+  }
 
   final prefs = await SharedPreferences.getInstance();
   final initialRoute = await _resolveInitialRoute(prefs);
@@ -223,6 +233,7 @@ class _LunarisAppState extends ConsumerState<LunarisApp> {
       darkTheme: LunarisTheme.dark(seedColor: seedColor, serverColors: darkColors),
       themeMode: themeMode,
       routerConfig: _router,
+      builder: (context, child) => BiometricLockScreen(child: child ?? const SizedBox.shrink()),
     );
   }
 }

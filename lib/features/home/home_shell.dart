@@ -27,6 +27,10 @@ import 'package:lunaris/features/messages/pm_inbox_view.dart';
 import 'package:lunaris/features/notifications/notification_list_view.dart';
 import 'package:lunaris/features/search/search_screen.dart';
 import 'package:lunaris/features/topic/topic_view_screen.dart';
+import 'package:lunaris/core/providers/connectivity_provider.dart';
+import 'package:lunaris/core/services/offline_action_service.dart';
+import 'package:lunaris/core/services/app_badge_service.dart';
+import 'package:lunaris/core/services/haptic_service.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
@@ -51,6 +55,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   void _onTabChanged(int index) {
     if (index == _currentTab) return;
+    HapticService.selection();
     setState(() {
       _currentTab = index;
       _selectedTopic = null;
@@ -240,6 +245,10 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       }
     });
 
+    ref.listen(notificationListProvider(server.serverUrl), (prev, next) {
+      AppBadgeService.updateCount(next.unreadCount);
+    });
+
     final avatarUrl =
         server.avatarTemplate != null
             ? resolveAvatarUrl(
@@ -315,23 +324,30 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                       child: const Icon(Icons.edit_rounded),
                     )
                   : null,
-      body: siteAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error:
-            (error, _) => _BootstrapError(
-              error: error,
-              onRetry:
-                  () =>
-                      ref
-                          .read(siteDataProvider(server.serverUrl).notifier)
-                          .refresh(),
+      body: Column(
+        children: [
+          const _OfflineBanner(),
+          Expanded(
+            child: siteAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error:
+                  (error, _) => _BootstrapError(
+                    error: error,
+                    onRetry:
+                        () =>
+                            ref
+                                .read(siteDataProvider(server.serverUrl).notifier)
+                                .refresh(),
+                  ),
+              data: (siteData) {
+                if (siteData == null) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return _buildResponsiveBody(breakpoint, siteData, server);
+              },
             ),
-        data: (siteData) {
-          if (siteData == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          return _buildResponsiveBody(breakpoint, siteData, server);
-        },
+          ),
+        ],
       ),
       bottomNavigationBar:
           breakpoint == LayoutBreakpoint.mobile
@@ -591,6 +607,69 @@ class _NotificationBadge extends ConsumerWidget {
     final unread = ref.watch(notificationListProvider(serverUrl)).unreadCount;
     if (unread == 0) return Icon(icon);
     return Badge.count(count: unread, child: Icon(icon));
+  }
+}
+
+class _OfflineBanner extends ConsumerWidget {
+  const _OfflineBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final connectivity = ref.watch(connectivityProvider);
+    final pendingCount = ref.watch(pendingActionCountProvider);
+    final theme = Theme.of(context);
+
+    if (connectivity.isOnline && !connectivity.wasOffline) {
+      return const SizedBox.shrink();
+    }
+
+    if (connectivity.wasOffline) {
+      return Material(
+        color: theme.colorScheme.tertiaryContainer,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: Row(
+            children: [
+              Icon(Icons.cloud_done_rounded, size: 16,
+                  color: theme.colorScheme.onTertiaryContainer),
+              const SizedBox(width: 8),
+              Text('Back online',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onTertiaryContainer)),
+              const Spacer(),
+              TextButton(
+                onPressed: () =>
+                    ref.read(connectivityProvider.notifier).dismissReconnected(),
+                child: const Text('Dismiss'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Material(
+      color: theme.colorScheme.errorContainer,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        child: Row(
+          children: [
+            Icon(Icons.cloud_off_rounded, size: 16,
+                color: theme.colorScheme.onErrorContainer),
+            const SizedBox(width: 8),
+            Text('Offline — viewing cached content',
+                style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onErrorContainer)),
+            if (pendingCount > 0) ...[
+              const Spacer(),
+              Text('$pendingCount pending',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onErrorContainer)),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 
