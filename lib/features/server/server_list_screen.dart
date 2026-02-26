@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lunaris/core/models/server_account.dart';
 import 'package:lunaris/core/providers/providers.dart';
-import 'package:lunaris/features/server/add_server_screen.dart';
-import 'package:lunaris/features/auth/login_screen.dart';
 
 class ServerListScreen extends ConsumerWidget {
   const ServerListScreen({super.key});
@@ -19,39 +18,30 @@ class ServerListScreen extends ConsumerWidget {
         centerTitle: true,
       ),
       body: servers.isEmpty
-          ? _EmptyState(onAdd: () => _navigateToAddServer(context))
+          ? _EmptyState(onAdd: () => context.push('/add-server'))
           : _ServerList(
               servers: servers,
-              onAdd: () => _navigateToAddServer(context),
+              onAdd: () => context.push('/add-server'),
               onRemove: (url) =>
                   ref.read(serverAccountsProvider.notifier).remove(url),
-              onTap: (account) => _onServerTap(context, account),
+              onTap: (account) => _onServerTap(context, ref, account),
             ),
       floatingActionButton: servers.isNotEmpty
           ? FloatingActionButton(
-              onPressed: () => _navigateToAddServer(context),
+              onPressed: () => context.push('/add-server'),
               child: const Icon(Icons.add_rounded),
             )
           : null,
     );
   }
 
-  void _navigateToAddServer(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AddServerScreen()),
-    );
-  }
-
-  void _onServerTap(BuildContext context, ServerAccount account) {
+  void _onServerTap(BuildContext context, WidgetRef ref, ServerAccount account) {
     if (!account.isAuthenticated) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => LoginScreen(account: account)),
-      );
+      context.push('/login', extra: account);
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Connected to ${account.siteName}')),
-    );
+    ref.read(activeServerIdProvider.notifier).setActive(account.id);
+    context.go('/home');
   }
 }
 
@@ -180,9 +170,14 @@ class _ServerTile extends StatelessWidget {
       ),
       confirmDismiss: (_) async {
         onRemove();
-        return false; // dialog handles the actual removal
+        return false;
       },
-      child: ListTile(
+      child: GestureDetector(
+        onSecondaryTapUp: (details) =>
+            _showContextMenu(context, details.globalPosition),
+        onLongPressStart: (details) =>
+            _showContextMenu(context, details.globalPosition),
+        child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: _ServerAvatar(
           logoUrl: account.siteLogoUrl,
@@ -214,7 +209,31 @@ class _ServerTile extends StatelessWidget {
             : Icon(Icons.arrow_forward_ios_rounded,
                 size: 16, color: theme.colorScheme.onSurfaceVariant),
         onTap: onTap,
+        ),
       ),
+    );
+  }
+
+  void _showContextMenu(BuildContext context, Offset position) {
+    final theme = Theme.of(context);
+    showMenu(
+      context: context,
+      position: RelativeRect.fromLTRB(
+          position.dx, position.dy, position.dx, position.dy),
+      items: [
+        PopupMenuItem(
+          onTap: onRemove,
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline_rounded,
+                  size: 20, color: theme.colorScheme.error),
+              const SizedBox(width: 8),
+              Text('Remove Server',
+                  style: TextStyle(color: theme.colorScheme.error)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

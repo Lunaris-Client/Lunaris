@@ -47,3 +47,35 @@ class ServerAccountsNotifier extends StateNotifier<List<ServerAccount>> {
     state = _storage.loadAll();
   }
 }
+
+final activeServerIdProvider =
+    StateNotifierProvider<ActiveServerNotifier, String?>((ref) {
+  return ActiveServerNotifier(ref.watch(sharedPreferencesProvider));
+});
+
+class ActiveServerNotifier extends StateNotifier<String?> {
+  final SharedPreferences _prefs;
+  static const _key = 'active_server_id';
+
+  ActiveServerNotifier(this._prefs) : super(_prefs.getString(_key));
+
+  Future<void> setActive(String? serverId) async {
+    state = serverId;
+    if (serverId != null) {
+      await _prefs.setString(_key, serverId);
+    } else {
+      await _prefs.remove(_key);
+    }
+  }
+}
+
+final activeServerProvider = Provider<ServerAccount?>((ref) {
+  final activeId = ref.watch(activeServerIdProvider);
+  if (activeId == null) return null;
+  final servers = ref.watch(serverAccountsProvider);
+  try {
+    return servers.firstWhere((s) => s.id == activeId);
+  } catch (_) {
+    return null;
+  }
+});

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:app_links/app_links.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:lunaris/core/models/models.dart';
 import 'package:lunaris/core/providers/providers.dart';
@@ -361,7 +362,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             const SizedBox(height: 20),
             FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
+              onPressed: () {
+                ref.read(activeServerIdProvider.notifier).setActive(
+                    widget.account.id);
+                context.go('/home');
+              },
               child: const Text('Continue'),
             ),
           ],
