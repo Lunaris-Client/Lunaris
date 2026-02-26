@@ -115,6 +115,42 @@ class DiscourseApiClient {
     return response.data as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> fetchTopicDetail(
+    String serverUrl,
+    String apiKey,
+    int topicId,
+  ) async {
+    final response = await _dio.get(
+      '$serverUrl/t/$topicId.json',
+      options: Options(
+        headers: {'User-Api-Key': apiKey},
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fetchTopicPosts(
+    String serverUrl,
+    String apiKey,
+    int topicId,
+    List<int> postIds,
+  ) async {
+    final params = <String, dynamic>{};
+    for (var i = 0; i < postIds.length; i++) {
+      params['post_ids[$i]'] = postIds[i];
+    }
+    final response = await _dio.get(
+      '$serverUrl/t/$topicId/posts.json',
+      queryParameters: params,
+      options: Options(
+        headers: {'User-Api-Key': apiKey},
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
   String? _resolveUrl(String baseUrl, String? path) {
     if (path == null || path.isEmpty) return null;
     if (path.startsWith('http')) return path;

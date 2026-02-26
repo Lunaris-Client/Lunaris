@@ -5,3 +5,5 @@ export 'site_data.dart';
 export 'site_category.dart';
 export 'site_group.dart';
 export 'topic.dart';
+export 'post.dart';
+export 'topic_detail.dart';

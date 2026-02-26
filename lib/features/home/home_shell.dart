@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lunaris/app/router.dart';
 import 'package:lunaris/core/layout/breakpoints.dart';
 import 'package:lunaris/core/models/server_account.dart';
 import 'package:lunaris/core/models/site_category.dart';
@@ -15,6 +16,7 @@ import 'package:lunaris/features/feed/topic_list_view.dart';
 import 'package:lunaris/features/home/detail_panel.dart';
 import 'package:lunaris/features/home/server_switcher_drawer.dart';
 import 'package:lunaris/features/home/sidebar_navigation.dart';
+import 'package:lunaris/features/topic/topic_view_screen.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
@@ -55,7 +57,25 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 
   void _onTopicSelected(Topic topic) {
-    setState(() => _selectedTopic = topic);
+    final breakpoint = layoutBreakpointOf(MediaQuery.sizeOf(context).width);
+    if (breakpoint == LayoutBreakpoint.mobile) {
+      final server = ref.read(activeServerProvider);
+      if (server == null) return;
+      final siteAsync = ref.read(siteDataProvider(server.serverUrl));
+      final categoriesById = siteAsync.valueOrNull != null
+          ? {for (final c in siteAsync.valueOrNull!.categories) c.id: c}
+          : null;
+      context.push(
+        '/topic/${topic.id}',
+        extra: TopicRouteExtra(
+          serverUrl: server.serverUrl,
+          topicTitle: topic.title,
+          categoriesById: categoriesById,
+        ),
+      );
+    } else {
+      setState(() => _selectedTopic = topic);
+    }
   }
 
   void _onCategoryBrowseSelected(SiteCategory category) {
@@ -189,12 +209,16 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         const VerticalDivider(width: 1),
         Expanded(
           flex: 3,
-          child: DetailPanel(
-            selectedTopic: _selectedTopic,
-            category: _selectedTopic != null
-                ? categoriesById[_selectedTopic!.categoryId]
-                : null,
-          ),
+          child: _selectedTopic != null
+              ? TopicViewScreen(
+                  key: ValueKey(_selectedTopic!.id),
+                  serverUrl: server.serverUrl,
+                  topicId: _selectedTopic!.id,
+                  topicTitle: _selectedTopic!.title,
+                  categoriesById: categoriesById,
+                  embedded: true,
+                )
+              : const DetailPanel(),
         ),
       ],
     );
