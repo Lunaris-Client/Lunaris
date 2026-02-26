@@ -249,4 +249,24 @@ class DiscourseApiClient {
       options: _authHeaders(apiKey),
     );
   }
+
+  Future<void> recordTimings(
+    String serverUrl,
+    String apiKey, {
+    required int topicId,
+    required Map<int, int> timings,
+    required int highestSeen,
+  }) async {
+    final data = <String, dynamic>{
+      'topic_id': topicId,
+      'topic_time': timings.values.fold<int>(0, (a, b) => a + b),
+      'timings': {for (final e in timings.entries) '${e.key}': e.value},
+      'highest_seen': highestSeen,
+    };
+    await _dio.post(
+      '$serverUrl/topics/timings',
+      data: data,
+      options: _authHeaders(apiKey),
+    );
+  }
 }

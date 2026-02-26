@@ -7,6 +7,7 @@ import 'package:lunaris/core/models/site_category.dart';
 import 'package:lunaris/core/providers/topic_detail_provider.dart';
 import 'package:lunaris/core/utils/color_utils.dart';
 import 'package:lunaris/features/topic/post_item.dart';
+import 'package:lunaris/features/topic/timeline_scrubber.dart';
 
 IconData notificationLevelIcon(int? level) {
   return switch (level) {
@@ -48,11 +49,13 @@ class TopicViewScreen extends ConsumerStatefulWidget {
 
 class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
   final _scrollController = ScrollController();
+  final _postKeys = <int, GlobalKey>{};
   late final _params = TopicDetailParams(
     serverUrl: widget.serverUrl,
     topicId: widget.topicId,
   );
   bool _showScrollToTop = false;
+  int _visiblePostIndex = 0;
 
   @override
   void initState() {
@@ -76,6 +79,29 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
         _scrollController.position.maxScrollExtent - 400) {
       _notifier.loadMorePosts();
     }
+
+    _updateVisiblePostIndex();
+  }
+
+  void _updateVisiblePostIndex() {
+    final state = ref.read(topicDetailProvider(_params));
+    if (state.topic == null) return;
+    final posts = state.topic!.posts;
+
+    int best = 0;
+    for (int i = 0; i < posts.length; i++) {
+      final key = _postKeys[posts[i].id];
+      if (key?.currentContext == null) continue;
+      final box = key!.currentContext!.findRenderObject() as RenderBox?;
+      if (box == null || !box.attached) continue;
+      final dy = box.localToGlobal(Offset.zero).dy;
+      if (dy <= 120) best = i; // 120px accounts for app bar height
+    }
+
+    if (best != _visiblePostIndex) {
+      setState(() => _visiblePostIndex = best);
+      _notifier.updateCurrentPostIndex(best);
+    }
   }
 
   void _scrollToPostNumber(int postNumber) {
@@ -85,7 +111,18 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
     final idx = state.topic!.posts.indexWhere(
       (p) => p.postNumber == postNumber,
     );
-    if (idx >= 0) {
+    if (idx < 0) return;
+
+    final post = state.topic!.posts[idx];
+    final key = _postKeys[post.id];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+      );
+    } else {
       _scrollController.animateTo(
         idx * 200.0,
         duration: const Duration(milliseconds: 300),
@@ -94,8 +131,78 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
     }
   }
 
+  void _scrollToIndex(int index) {
+    final state = ref.read(topicDetailProvider(_params));
+    if (state.topic == null) return;
+    final posts = state.topic!.posts;
+    if (index < 0 || index >= posts.length) return;
+    _scrollToPostNumber(posts[index].postNumber);
+  }
+
+  void _jumpToFirstUnread() {
+    final unread = _notifier.firstUnreadPostNumber;
+    if (unread != null) {
+      _scrollToPostNumber(unread);
+    }
+  }
+
+  void _showJumpToPostDialog(BuildContext context, int maxPostNumber) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Jump to post'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              hintText: '1 - $maxPostNumber',
+              border: const OutlineInputBorder(),
+            ),
+            onSubmitted: (value) {
+              final n = int.tryParse(value);
+              if (n != null && n >= 1 && n <= maxPostNumber) {
+                Navigator.pop(ctx);
+                _scrollToPostNumber(n);
+              }
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final n = int.tryParse(controller.text);
+                if (n != null && n >= 1 && n <= maxPostNumber) {
+                  Navigator.pop(ctx);
+                  _scrollToPostNumber(n);
+                }
+              },
+              child: const Text('Go'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   TopicDetailNotifier get _notifier =>
       ref.read(topicDetailProvider(_params).notifier);
+
+  Widget? _buildTimelineScrubber(TopicDetailState state) {
+    if (state.topic == null || state.topic!.posts.length <= 3) return null;
+    return TimelineScrubber(
+      currentIndex: _visiblePostIndex,
+      totalPosts: state.topic!.posts.length,
+      lastReadPostNumber: state.topic!.lastReadPostNumber,
+      highestPostNumber: state.topic!.highestPostNumber,
+      onScrub: _scrollToIndex,
+    );
+  }
 
   String get _topicUrl => '${widget.serverUrl}/t/${widget.topicId}';
 
@@ -266,14 +373,21 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
     final state = ref.watch(topicDetailProvider(_params));
     final theme = Theme.of(context);
 
+    final scrubber = _buildTimelineScrubber(state);
+
     if (widget.embedded) {
       return Stack(
         children: [
-          _buildBody(state, theme),
+          Row(
+            children: [
+              Expanded(child: _buildBody(state, theme)),
+              if (scrubber != null) scrubber,
+            ],
+          ),
           Positioned(
-            right: 12,
+            right: 56,
             bottom: 12,
-            child: _buildScrollToTopFab(theme) ?? const SizedBox.shrink(),
+            child: _buildNavigationFab(state, theme),
           ),
         ],
       );
@@ -288,8 +402,13 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
         ),
         actions: _buildAppBarActions(state, theme),
       ),
-      body: _buildBody(state, theme),
-      floatingActionButton: _buildScrollToTopFab(theme),
+      body: Row(
+        children: [
+          Expanded(child: _buildBody(state, theme)),
+          if (scrubber != null) scrubber,
+        ],
+      ),
+      floatingActionButton: _buildNavigationFab(state, theme),
     );
   }
 
@@ -309,13 +428,53 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
         icon: const Icon(Icons.share_outlined),
         onPressed: _shareTopic,
       ),
-      IconButton(
-        icon: Icon(notificationLevelIcon(state.topic!.notificationLevel)),
-        onPressed:
-            () => _showNotificationLevelPicker(
-              context,
-              state.topic!.notificationLevel,
-            ),
+      PopupMenuButton<String>(
+        icon: const Icon(Icons.more_vert_rounded),
+        onSelected: (value) {
+          switch (value) {
+            case 'jump':
+              _showJumpToPostDialog(context, state.topic!.highestPostNumber);
+            case 'unread':
+              _jumpToFirstUnread();
+            case 'notification':
+              _showNotificationLevelPicker(
+                context,
+                state.topic!.notificationLevel,
+              );
+          }
+        },
+        itemBuilder:
+            (ctx) => [
+              const PopupMenuItem(
+                value: 'jump',
+                child: ListTile(
+                  leading: Icon(Icons.tag_rounded),
+                  title: Text('Jump to post'),
+                  dense: true,
+                ),
+              ),
+              if (_notifier.firstUnreadPostNumber != null)
+                const PopupMenuItem(
+                  value: 'unread',
+                  child: ListTile(
+                    leading: Icon(Icons.mark_chat_unread_outlined),
+                    title: Text('First unread'),
+                    dense: true,
+                  ),
+                ),
+              PopupMenuItem(
+                value: 'notification',
+                child: ListTile(
+                  leading: Icon(
+                    notificationLevelIcon(state.topic!.notificationLevel),
+                  ),
+                  title: Text(
+                    notificationLevelLabel(state.topic!.notificationLevel),
+                  ),
+                  dense: true,
+                ),
+              ),
+            ],
       ),
     ];
   }
@@ -397,7 +556,9 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
             delegate: SliverChildBuilderDelegate((context, index) {
               if (index < topic.posts.length) {
                 final post = topic.posts[index];
+                _postKeys.putIfAbsent(post.id, () => GlobalKey());
                 return Column(
+                  key: _postKeys[post.id],
                   children: [
                     PostItem(
                       post: post,
@@ -443,16 +604,38 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
     );
   }
 
-  Widget? _buildScrollToTopFab(ThemeData theme) {
-    if (!_showScrollToTop) return null;
-    return FloatingActionButton.small(
-      onPressed:
-          () => _scrollController.animateTo(
-            0,
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeOut,
+  Widget _buildNavigationFab(TopicDetailState state, ThemeData theme) {
+    if (!_showScrollToTop) return const SizedBox.shrink();
+    final hasUnread =
+        state.topic != null && _notifier.firstUnreadPostNumber != null;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (hasUnread)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: FloatingActionButton.small(
+              heroTag: 'fab_unread',
+              backgroundColor: theme.colorScheme.tertiaryContainer,
+              onPressed: _jumpToFirstUnread,
+              child: Icon(
+                Icons.mark_chat_unread_outlined,
+                color: theme.colorScheme.onTertiaryContainer,
+              ),
+            ),
           ),
-      child: const Icon(Icons.arrow_upward_rounded),
+        FloatingActionButton.small(
+          heroTag: 'fab_top',
+          onPressed:
+              () => _scrollController.animateTo(
+                0,
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeOut,
+              ),
+          child: const Icon(Icons.arrow_upward_rounded),
+        ),
+      ],
     );
   }
 }

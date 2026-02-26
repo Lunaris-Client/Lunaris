@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lunaris/core/api/discourse_api_client.dart';
 import 'package:lunaris/core/auth/auth_service.dart';
@@ -40,6 +42,7 @@ class TopicDetailState {
   final bool isLoadingMore;
   final Object? error;
   final Set<int> loadedPostIds;
+  final int currentPostIndex;
 
   const TopicDetailState({
     this.topic,
@@ -47,6 +50,7 @@ class TopicDetailState {
     this.isLoadingMore = false,
     this.error,
     this.loadedPostIds = const {},
+    this.currentPostIndex = 0,
   });
 
   TopicDetailState copyWith({
@@ -56,6 +60,7 @@ class TopicDetailState {
     Object? error,
     bool clearError = false,
     Set<int>? loadedPostIds,
+    int? currentPostIndex,
   }) {
     return TopicDetailState(
       topic: topic ?? this.topic,
@@ -63,6 +68,7 @@ class TopicDetailState {
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
       error: clearError ? null : (error ?? this.error),
       loadedPostIds: loadedPostIds ?? this.loadedPostIds,
+      currentPostIndex: currentPostIndex ?? this.currentPostIndex,
     );
   }
 
@@ -77,10 +83,23 @@ class TopicDetailNotifier extends StateNotifier<TopicDetailState> {
   final AuthService _authService;
   final TopicDetailParams _params;
   static const _chunkSize = 20;
+  static const _timingsInterval = Duration(seconds: 5);
+
+  Timer? _timingsTimer;
+  final Map<int, int> _pendingTimings = {};
+  int _highestSeen = 0;
 
   TopicDetailNotifier(this._apiClient, this._authService, this._params)
     : super(const TopicDetailState()) {
     _fetchTopic();
+    _timingsTimer = Timer.periodic(_timingsInterval, (_) => _flushTimings());
+  }
+
+  @override
+  void dispose() {
+    _flushTimings();
+    _timingsTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _fetchTopic() async {
@@ -340,5 +359,58 @@ class TopicDetailNotifier extends StateNotifier<TopicDetailState> {
         topic: state.topic!.copyWith(notificationLevel: previous),
       );
     }
+  }
+
+  void updateCurrentPostIndex(int index) {
+    if (index == state.currentPostIndex) return;
+    state = state.copyWith(currentPostIndex: index);
+
+    if (state.topic == null) return;
+    final posts = state.topic!.posts;
+    if (index < 0 || index >= posts.length) return;
+
+    final postNumber = posts[index].postNumber;
+    _pendingTimings[postNumber] =
+        (_pendingTimings[postNumber] ?? 0) + _timingsInterval.inMilliseconds;
+    if (postNumber > _highestSeen) _highestSeen = postNumber;
+  }
+
+  Future<void> _flushTimings() async {
+    if (_pendingTimings.isEmpty || state.topic == null) return;
+
+    final batch = Map<int, int>.of(_pendingTimings);
+    final highest = _highestSeen;
+    _pendingTimings.clear();
+
+    try {
+      final apiKey = await _getApiKey();
+      if (apiKey == null) return;
+
+      await _apiClient.recordTimings(
+        _params.serverUrl,
+        apiKey,
+        topicId: _params.topicId,
+        timings: batch,
+        highestSeen: highest,
+      );
+
+      if (state.topic != null) {
+        final lastRead = state.topic!.lastReadPostNumber ?? 0;
+        if (highest > lastRead) {
+          state = state.copyWith(
+            topic: state.topic!.copyWith(lastReadPostNumber: highest),
+          );
+        }
+      }
+    } catch (_) {
+      _pendingTimings.addAll(batch);
+    }
+  }
+
+  int? get firstUnreadPostNumber {
+    if (state.topic == null) return null;
+    final lastRead = state.topic!.lastReadPostNumber ?? 0;
+    if (lastRead >= state.topic!.highestPostNumber) return null;
+    return lastRead + 1;
   }
 }
