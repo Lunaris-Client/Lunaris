@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lunaris/core/models/theme_settings.dart';
 import 'package:lunaris/core/providers/providers.dart';
+import 'package:lunaris/ui/theme/discourse_colors.dart';
 
 final themeSettingsProvider =
     StateNotifierProvider<ThemeSettingsNotifier, ThemeSettings>(
@@ -64,4 +65,25 @@ final effectiveSeedColorProvider = Provider<Color>((ref) {
   }
 
   return settings.customColor ?? ThemeSettings.defaultSeedColor;
+});
+
+final serverLightColorsProvider = Provider<DiscourseColors?>((ref) {
+  final settings = ref.watch(themeSettingsProvider);
+  if (!settings.useServerColors) return null;
+  final server = ref.watch(activeServerProvider);
+  if (server == null) return null;
+  final siteData = ref.watch(siteDataProvider(server.serverUrl)).valueOrNull;
+  if (siteData == null) return null;
+  return DiscourseColors.fromColorMap(siteData.defaultLightColors);
+});
+
+final serverDarkColorsProvider = Provider<DiscourseColors?>((ref) {
+  final settings = ref.watch(themeSettingsProvider);
+  if (!settings.useServerColors) return null;
+  final server = ref.watch(activeServerProvider);
+  if (server == null) return null;
+  final siteData = ref.watch(siteDataProvider(server.serverUrl)).valueOrNull;
+  if (siteData == null) return null;
+  return DiscourseColors.fromColorMap(siteData.defaultDarkColors)
+      ?? DiscourseColors.fromColorMap(siteData.defaultLightColors);
 });

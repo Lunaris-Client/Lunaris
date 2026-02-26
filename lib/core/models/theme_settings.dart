@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:lunaris/core/utils/color_utils.dart';
 
 class ThemeSettings {
   static const defaultSeedColor = Color(0xFF2196F3);
@@ -28,7 +29,7 @@ class ThemeSettings {
     );
   }
 
-  Color? get customColor => _colorFromHex(customColorHex);
+  Color? get customColor => tryParseHexColor(customColorHex);
 
   Map<String, dynamic> toJson() => {
     'themeMode': themeMode.index,
@@ -53,18 +54,10 @@ class ThemeSettings {
 
   static Color? colorFromHexMap(Map<String, String>? colors, String name) {
     if (colors == null) return null;
-    return _colorFromHex(colors[name]);
+    return tryParseHexColor(colors[name]);
   }
 
   static Color? seedColorFromScheme(Map<String, String>? colors) {
     return colorFromHexMap(colors, 'tertiary');
-  }
-
-  static Color? _colorFromHex(String? hex) {
-    if (hex == null || hex.isEmpty) return null;
-    final cleaned = hex.replaceFirst('#', '');
-    final value = int.tryParse(cleaned, radix: 16);
-    if (value == null) return null;
-    return Color(0xFF000000 | value);
   }
 }

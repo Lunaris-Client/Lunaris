@@ -9,6 +9,7 @@ class SidebarNavigation extends StatelessWidget {
   final bool extended;
   final ServerAccount? activeServer;
   final int notificationBadgeCount;
+  final VoidCallback? onAvatarTap;
 
   const SidebarNavigation({
     super.key,
@@ -17,6 +18,7 @@ class SidebarNavigation extends StatelessWidget {
     this.extended = false,
     this.activeServer,
     this.notificationBadgeCount = 0,
+    this.onAvatarTap,
   });
 
   static const _destinations = [
@@ -72,6 +74,7 @@ class SidebarNavigation extends StatelessWidget {
           _SidebarHeader(
             activeServer: activeServer,
             onMenuTap: () => Scaffold.of(context).openDrawer(),
+            onAvatarTap: onAvatarTap,
           ),
           const Divider(height: 1),
           Expanded(
@@ -99,8 +102,13 @@ class SidebarNavigation extends StatelessWidget {
 class _SidebarHeader extends StatelessWidget {
   final ServerAccount? activeServer;
   final VoidCallback onMenuTap;
+  final VoidCallback? onAvatarTap;
 
-  const _SidebarHeader({required this.activeServer, required this.onMenuTap});
+  const _SidebarHeader({
+    required this.activeServer,
+    required this.onMenuTap,
+    this.onAvatarTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -145,56 +153,65 @@ class _SidebarHeader extends StatelessWidget {
             )
             : null;
 
-    return InkWell(
-      onTap: onMenuTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 12, 12),
-        child: Row(
-          children: [
-            if (avatarUrl != null)
-              CircleAvatar(
-                radius: 18,
-                backgroundImage: CachedNetworkImageProvider(avatarUrl),
-              )
-            else
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: theme.colorScheme.primaryContainer,
-                child: Icon(
-                  Icons.person_rounded,
-                  size: 18,
-                  color: theme.colorScheme.onPrimaryContainer,
-                ),
-              ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    server.username ?? 'Unknown',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 12, 12),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: onAvatarTap,
+            child: avatarUrl != null
+                ? CircleAvatar(
+                    radius: 18,
+                    backgroundImage: CachedNetworkImageProvider(avatarUrl),
+                  )
+                : CircleAvatar(
+                    radius: 18,
+                    backgroundColor: theme.colorScheme.primaryContainer,
+                    child: Icon(
+                      Icons.person_rounded,
+                      size: 18,
+                      color: theme.colorScheme.onPrimaryContainer,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  Text(
-                    server.siteName,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: InkWell(
+              onTap: onMenuTap,
+              borderRadius: BorderRadius.circular(8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          server.username ?? 'Unknown',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          server.siteName,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Icon(
+                    Icons.unfold_more_rounded,
+                    size: 20,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ],
               ),
             ),
-            Icon(
-              Icons.unfold_more_rounded,
-              size: 20,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

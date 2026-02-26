@@ -83,6 +83,12 @@ class PmListNotifier extends StateNotifier<PmListState> {
 
   Future<void> refresh() => _fetchFirstPage();
 
+  // Discourse doesn't always set more_topics_url even when more pages exist;
+  // fall back to checking whether a full page was returned.
+  bool _hasMorePages(TopicListResponse response) =>
+      response.moreTopicsUrl != null ||
+      (response.perPage != null && response.topics.length >= response.perPage!);
+
   Future<void> loadMore() async {
     if (state.isLoadingMore || !state.hasMore) return;
 
@@ -107,7 +113,7 @@ class PmListNotifier extends StateNotifier<PmListState> {
         topics: [...state.topics, ...response.topics],
         users: mergedUsers,
         isLoadingMore: false,
-        hasMore: response.moreTopicsUrl != null,
+        hasMore: _hasMorePages(response),
         currentPage: nextPage,
       );
     } catch (e) {
@@ -132,7 +138,7 @@ class PmListNotifier extends StateNotifier<PmListState> {
         topics: response.topics,
         users: response.users,
         isLoading: false,
-        hasMore: response.moreTopicsUrl != null,
+        hasMore: _hasMorePages(response),
         currentPage: 0,
       );
     } catch (e) {

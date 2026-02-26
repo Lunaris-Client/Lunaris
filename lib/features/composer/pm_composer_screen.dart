@@ -6,6 +6,7 @@ import 'package:lunaris/core/providers/draft_provider.dart';
 import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/features/composer/composer_upload_mixin.dart';
 import 'package:lunaris/features/composer/markdown_toolbar.dart';
+import 'package:lunaris/ui/widgets/adaptive_dialog.dart';
 
 class PmComposerScreen extends ConsumerStatefulWidget {
   final String serverUrl;
@@ -158,22 +159,13 @@ class _PmComposerScreenState extends ConsumerState<PmComposerScreen>
         _bodyController.text.trim().isNotEmpty ||
         _recipients.isNotEmpty;
     if (!hasContent) return true;
-    final result = await showDialog<bool>(
+    final result = await showAdaptiveConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Discard message?'),
-        content: const Text('Your draft will be saved automatically.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Keep editing'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Discard'),
-          ),
-        ],
-      ),
+      title: 'Discard message?',
+      content: 'Your draft will be saved automatically.',
+      cancelLabel: 'Keep editing',
+      confirmLabel: 'Discard',
+      isDestructive: true,
     );
     if (result == true) {
       ref.read(draftProvider(_draftParams).notifier).discard();

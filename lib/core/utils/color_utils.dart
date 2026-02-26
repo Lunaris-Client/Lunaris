@@ -1,5 +1,13 @@
 import 'dart:ui';
 
+Color? tryParseHexColor(String? hex) {
+  if (hex == null || hex.isEmpty) return null;
+  final cleaned = hex.replaceFirst('#', '');
+  final value = int.tryParse(cleaned, radix: 16);
+  if (value == null) return null;
+  return Color(0xFF000000 | value);
+}
+
 Color parseHexColor(String hex) {
   final cleaned = hex.replaceFirst('#', '');
   if (cleaned.length == 3) {

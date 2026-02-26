@@ -48,7 +48,7 @@ class ThemeSettingsScreen extends ConsumerWidget {
           const Divider(),
           const SectionHeader(title: 'Accent Color'),
           if (hasServerColors)
-            SwitchListTile(
+            SwitchListTile.adaptive(
               title: const Text('Use Server Colors'),
               subtitle: Text(
                 server?.siteName != null

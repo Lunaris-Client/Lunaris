@@ -39,8 +39,13 @@ class SiteBootstrapService {
 
   Future<SiteData> bootstrap(String serverUrl) async {
     final cached = await loadCached(serverUrl);
-    if (cached != null) return cached;
-    return fetchAndCache(serverUrl);
+    if (cached != null && cached.defaultLightColors != null) return cached;
+    try {
+      return await fetchAndCache(serverUrl);
+    } catch (_) {
+      if (cached != null) return cached;
+      rethrow;
+    }
   }
 
   bool needsRefresh(SiteData data) => _cache.isStale(data.fetchedAt);

@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lunaris/core/models/server_account.dart';
 import 'package:lunaris/core/providers/providers.dart';
+import 'package:lunaris/ui/widgets/adaptive_dialog.dart';
 
 class ServerSwitcherDrawer extends ConsumerWidget {
   const ServerSwitcherDrawer({super.key});
@@ -58,7 +59,7 @@ class ServerSwitcherDrawer extends ConsumerWidget {
                     ),
                     for (final account in unauthenticated)
                       ListTile(
-                        leading: _ServerIcon(faviconUrl: account.faviconUrl),
+                        leading: _ServerIcon(logoUrl: account.siteLogoUrl, faviconUrl: account.faviconUrl),
                         title: Text(account.siteName),
                         subtitle: Text(
                           'Tap to log in',
@@ -209,23 +210,11 @@ class ServerSwitcherDrawer extends ConsumerWidget {
     final activeServer = ref.read(activeServerProvider);
     if (activeServer == null) return;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAdaptiveConfirmDialog(
       context: context,
-      builder:
-          (ctx) => AlertDialog(
-            title: const Text('Log Out'),
-            content: Text('Log out of ${activeServer.siteName}?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Log Out'),
-              ),
-            ],
-          ),
+      title: 'Log Out',
+      content: 'Log out of ${activeServer.siteName}?',
+      confirmLabel: 'Log Out',
     );
 
     if (confirmed != true || !context.mounted) return;
@@ -294,7 +283,7 @@ class _ServerTile extends StatelessWidget {
       selectedTileColor: theme.colorScheme.primaryContainer.withValues(
         alpha: 0.3,
       ),
-      leading: _ServerIcon(faviconUrl: account.faviconUrl),
+      leading: _ServerIcon(logoUrl: account.siteLogoUrl, faviconUrl: account.faviconUrl),
       title: Text(
         account.siteName,
         style: TextStyle(
@@ -319,18 +308,24 @@ class _ServerTile extends StatelessWidget {
 }
 
 class _ServerIcon extends StatelessWidget {
+  final String? logoUrl;
   final String? faviconUrl;
 
-  const _ServerIcon({this.faviconUrl});
+  const _ServerIcon({this.logoUrl, this.faviconUrl});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final imageUrl = logoUrl ?? faviconUrl;
 
-    if (faviconUrl == null) {
-      return CircleAvatar(
-        radius: 16,
-        backgroundColor: theme.colorScheme.primaryContainer,
+    if (imageUrl == null) {
+      return Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(8),
+        ),
         child: Icon(
           Icons.forum_rounded,
           size: 16,
@@ -339,15 +334,20 @@ class _ServerIcon extends StatelessWidget {
       );
     }
 
-    return CircleAvatar(
-      radius: 16,
-      backgroundColor: theme.colorScheme.primaryContainer,
-      child: ClipOval(
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
         child: CachedNetworkImage(
-          imageUrl: faviconUrl!,
+          imageUrl: imageUrl,
           width: 32,
           height: 32,
-          fit: BoxFit.cover,
+          fit: BoxFit.contain,
           errorWidget:
               (_, __, ___) => Icon(
                 Icons.forum_rounded,

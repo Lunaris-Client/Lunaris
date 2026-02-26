@@ -10,6 +10,7 @@ import 'package:lunaris/features/bookmarks/bookmark_reminder_picker.dart';
 import 'package:lunaris/features/composer/reply_composer_screen.dart';
 import 'package:lunaris/features/topic/post_item.dart';
 import 'package:lunaris/features/topic/timeline_scrubber.dart';
+import 'package:lunaris/ui/widgets/adaptive_dialog.dart';
 
 IconData notificationLevelIcon(int? level) {
   return switch (level) {
@@ -150,10 +151,10 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
 
   void _showJumpToPostDialog(BuildContext context, int maxPostNumber) {
     final controller = TextEditingController();
-    showDialog(
+    showAdaptiveDialog(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
+        return AlertDialog.adaptive(
           title: const Text('Jump to post'),
           content: TextField(
             controller: controller,
@@ -172,11 +173,14 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
             },
           ),
           actions: [
-            TextButton(
+            adaptiveAction(
+              context: ctx,
               onPressed: () => Navigator.pop(ctx),
               child: const Text('Cancel'),
             ),
-            FilledButton(
+            adaptiveAction(
+              context: ctx,
+              isDefault: true,
               onPressed: () {
                 final n = int.tryParse(controller.text);
                 if (n != null && n >= 1 && n <= maxPostNumber) {

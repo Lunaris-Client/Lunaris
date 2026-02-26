@@ -260,33 +260,44 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             onPressed: () => _openSearch(server),
           ),
           if (_currentTab == 2) _buildMarkAllReadButton(server.serverUrl),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: GestureDetector(
-              onTap: server.username != null && server.username!.isNotEmpty
-                  ? () => _openUserProfile(server, server.username!)
-                  : null,
-              child: avatarUrl != null
-                    ? CircleAvatar(
-                      radius: 16,
-                      backgroundImage: CachedNetworkImageProvider(avatarUrl),
-                    )
-                    : CircleAvatar(
-                      radius: 16,
-                      backgroundColor: theme.colorScheme.primaryContainer,
-                      child: Icon(
-                        Icons.person_rounded,
-                        size: 18,
-                        color: theme.colorScheme.onPrimaryContainer,
+          if (breakpoint == LayoutBreakpoint.mobile)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: GestureDetector(
+                onTap: server.username != null && server.username!.isNotEmpty
+                    ? () => _openUserProfile(server, server.username!)
+                    : null,
+                child: avatarUrl != null
+                      ? CircleAvatar(
+                        radius: 16,
+                        backgroundImage: CachedNetworkImageProvider(avatarUrl),
+                      )
+                      : CircleAvatar(
+                        radius: 16,
+                        backgroundColor: theme.colorScheme.primaryContainer,
+                        child: Icon(
+                          Icons.person_rounded,
+                          size: 18,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
                       ),
-                    ),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Builder(
+                builder: (scaffoldContext) => GestureDetector(
+                  onTap: () => Scaffold.of(scaffoldContext).openDrawer(),
+                  child: _buildSiteLogo(server, theme),
+                ),
+              ),
             ),
-          ),
         ],
       ),
       drawer: const ServerSwitcherDrawer(),
       floatingActionButton:
-          _currentTab == 0
+          _currentTab == 0 && _selectedTopic == null
               ? siteAsync.whenOrNull(
                 data: (siteData) {
                   if (siteData == null) return null;
@@ -402,6 +413,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           extended: breakpoint == LayoutBreakpoint.desktop,
           activeServer: breakpoint == LayoutBreakpoint.desktop ? server : null,
           notificationBadgeCount: unreadCount,
+          onAvatarTap: server.username != null && server.username!.isNotEmpty
+              ? () => _openUserProfile(server, server.username!)
+              : null,
         ),
         const VerticalDivider(width: 1),
         Expanded(flex: 2, child: content),
@@ -520,6 +534,47 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       extra: TopicRouteExtra(
         serverUrl: server.serverUrl,
         categoriesById: categoriesById,
+      ),
+    );
+  }
+
+  Widget _buildSiteLogo(ServerAccount server, ThemeData theme) {
+    final logoUrl = server.siteLogoUrl ?? server.faviconUrl;
+    if (logoUrl != null) {
+      return Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: CachedNetworkImage(
+            imageUrl: logoUrl,
+            width: 32,
+            height: 32,
+            fit: BoxFit.contain,
+            errorWidget: (_, __, ___) => Icon(
+              Icons.forum_rounded,
+              size: 18,
+              color: theme.colorScheme.onPrimaryContainer,
+            ),
+          ),
+        ),
+      );
+    }
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(
+        Icons.forum_rounded,
+        size: 18,
+        color: theme.colorScheme.onPrimaryContainer,
       ),
     );
   }

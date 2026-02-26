@@ -7,6 +7,7 @@ import 'package:lunaris/app/router.dart';
 import 'package:lunaris/core/models/bookmark.dart';
 import 'package:lunaris/core/providers/bookmark_provider.dart';
 import 'package:lunaris/core/utils/color_utils.dart';
+import 'package:lunaris/ui/widgets/adaptive_dialog.dart';
 
 class BookmarkListView extends ConsumerStatefulWidget {
   final String serverUrl;
@@ -160,33 +161,19 @@ class _BookmarkListViewState extends ConsumerState<BookmarkListView> {
     );
   }
 
-  void _confirmDelete(Bookmark bookmark) {
-    showDialog(
+  void _confirmDelete(Bookmark bookmark) async {
+    final confirmed = await showAdaptiveConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Remove bookmark?'),
-        content: Text(
-          bookmark.title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ref
-                  .read(bookmarkListProvider(_params).notifier)
-                  .deleteBookmark(bookmark.id);
-            },
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
+      title: 'Remove bookmark?',
+      content: bookmark.title,
+      confirmLabel: 'Remove',
+      isDestructive: true,
     );
+    if (confirmed == true) {
+      ref
+          .read(bookmarkListProvider(_params).notifier)
+          .deleteBookmark(bookmark.id);
+    }
   }
 }
 

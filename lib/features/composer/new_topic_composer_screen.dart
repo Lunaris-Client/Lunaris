@@ -8,6 +8,7 @@ import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/core/utils/color_utils.dart';
 import 'package:lunaris/features/composer/composer_upload_mixin.dart';
 import 'package:lunaris/features/composer/markdown_toolbar.dart';
+import 'package:lunaris/ui/widgets/adaptive_dialog.dart';
 
 class NewTopicComposerScreen extends ConsumerStatefulWidget {
   final String serverUrl;
@@ -512,32 +513,22 @@ class _NewTopicComposerScreenState
     );
   }
 
-  void _confirmDiscard(BuildContext context) {
+  void _confirmDiscard(BuildContext context) async {
     if (_titleController.text.trim().isEmpty &&
         _bodyController.text.trim().isEmpty) {
       Navigator.of(context).pop();
       return;
     }
-    showDialog(
+    final confirmed = await showAdaptiveConfirmDialog(
       context: context,
-      builder:
-          (ctx) => AlertDialog(
-            title: const Text('Discard topic?'),
-            content: const Text('Your draft will be saved automatically.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Keep editing'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  Navigator.of(context).pop();
-                },
-                child: const Text('Discard'),
-              ),
-            ],
-          ),
+      title: 'Discard topic?',
+      content: 'Your draft will be saved automatically.',
+      cancelLabel: 'Keep editing',
+      confirmLabel: 'Discard',
+      isDestructive: true,
     );
+    if (confirmed == true && context.mounted) {
+      Navigator.of(context).pop();
+    }
   }
 }

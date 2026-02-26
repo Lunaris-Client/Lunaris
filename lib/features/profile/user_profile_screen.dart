@@ -95,7 +95,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen>
     return NestedScrollView(
       headerSliverBuilder: (context, innerBoxScrolled) => [
         SliverAppBar(
-          expandedHeight: 240,
+          expandedHeight: 280,
           pinned: true,
           title: Text(profile.username),
           flexibleSpace: FlexibleSpaceBar(
@@ -171,6 +171,7 @@ class _ProfileHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(24, 80, 24, 16),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
         children: [
           CircleAvatar(
             radius: 40,

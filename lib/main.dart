@@ -213,12 +213,14 @@ class _LunarisAppState extends ConsumerState<LunarisApp> {
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeSettingsProvider.select((s) => s.themeMode));
     final seedColor = ref.watch(effectiveSeedColorProvider);
+    final lightColors = ref.watch(serverLightColorsProvider);
+    final darkColors = ref.watch(serverDarkColorsProvider);
 
     return MaterialApp.router(
       title: 'Lunaris',
       debugShowCheckedModeBanner: false,
-      theme: LunarisTheme.light(seedColor: seedColor),
-      darkTheme: LunarisTheme.dark(seedColor: seedColor),
+      theme: LunarisTheme.light(seedColor: seedColor, serverColors: lightColors),
+      darkTheme: LunarisTheme.dark(seedColor: seedColor, serverColors: darkColors),
       themeMode: themeMode,
       routerConfig: _router,
     );

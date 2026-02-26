@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lunaris/core/models/server_account.dart';
 import 'package:lunaris/core/providers/providers.dart';
+import 'package:lunaris/ui/widgets/adaptive_dialog.dart';
 
 class ServerListScreen extends ConsumerWidget {
   const ServerListScreen({super.key});
@@ -119,28 +120,17 @@ class _ServerList extends StatelessWidget {
     );
   }
 
-  void _confirmRemove(BuildContext context, ServerAccount account) {
-    showDialog(
+  void _confirmRemove(BuildContext context, ServerAccount account) async {
+    final confirmed = await showAdaptiveConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Remove Server'),
-        content: Text('Remove ${account.siteName}? '
-            'You can add it back later.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              onRemove(account.serverUrl);
-            },
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
+      title: 'Remove Server',
+      content: 'Remove ${account.siteName}? You can add it back later.',
+      confirmLabel: 'Remove',
+      isDestructive: true,
     );
+    if (confirmed == true) {
+      onRemove(account.serverUrl);
+    }
   }
 }
 
@@ -247,24 +237,35 @@ class _ServerAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final imageUrl = faviconUrl ?? logoUrl;
+    final imageUrl = logoUrl ?? faviconUrl;
 
     if (imageUrl == null) {
-      return CircleAvatar(
-        backgroundColor: theme.colorScheme.primaryContainer,
+      return Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(8),
+        ),
         child: Icon(Icons.forum_rounded,
             color: theme.colorScheme.onPrimaryContainer, size: 20),
       );
     }
 
-    return CircleAvatar(
-      backgroundColor: theme.colorScheme.primaryContainer,
-      child: ClipOval(
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
         child: CachedNetworkImage(
           imageUrl: imageUrl,
           width: 40,
           height: 40,
-          fit: BoxFit.cover,
+          fit: BoxFit.contain,
           errorWidget: (_, __, ___) => Icon(Icons.forum_rounded,
               color: theme.colorScheme.onPrimaryContainer, size: 20),
         ),
