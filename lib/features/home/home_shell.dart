@@ -16,6 +16,7 @@ import 'package:lunaris/features/feed/topic_list_view.dart';
 import 'package:lunaris/features/home/detail_panel.dart';
 import 'package:lunaris/features/home/server_switcher_drawer.dart';
 import 'package:lunaris/features/home/sidebar_navigation.dart';
+import 'package:lunaris/core/providers/message_bus_provider.dart';
 import 'package:lunaris/core/providers/notification_provider.dart';
 import 'package:lunaris/features/notifications/notification_list_view.dart';
 import 'package:lunaris/features/topic/topic_view_screen.dart';
@@ -33,6 +34,13 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   SiteCategory? _selectedCategory;
   String _selectedPeriod = 'all';
   Topic? _selectedTopic;
+  String? _connectedServerUrl;
+
+  @override
+  void dispose() {
+    ref.read(messageBusProvider.notifier).disconnect();
+    super.dispose();
+  }
 
   void _onTabChanged(int index) {
     if (index == _currentTab) return;
@@ -100,6 +108,44 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       WidgetsBinding.instance.addPostFrameCallback((_) => context.go('/'));
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+
+    if (_connectedServerUrl != server.serverUrl) {
+      _connectedServerUrl = server.serverUrl;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(messageBusProvider.notifier).connect(server);
+      });
+    }
+
+    ref.listen<MessageBusEvent?>(messageBusProvider, (prev, next) {
+      if (next == null || !mounted) return;
+      if (next.type == 'notification_alert' && next.data is Map) {
+        final data = next.data as Map;
+        final excerpt =
+            data['excerpt'] as String? ??
+            data['fancy_title'] as String? ??
+            'New notification';
+        final username = data['username'] as String? ?? '';
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                username.isNotEmpty ? '$username: $excerpt' : excerpt,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 4),
+              action: SnackBarAction(
+                label: 'View',
+                onPressed: () {
+                  setState(() => _currentTab = 2);
+                },
+              ),
+            ),
+          );
+      }
+    });
 
     final siteAsync = ref.watch(siteDataProvider(server.serverUrl));
 
@@ -171,20 +217,26 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               ? NavigationBar(
                 selectedIndex: _currentTab,
                 onDestinationSelected: _onTabChanged,
-                destinations: const [
-                  NavigationDestination(
+                destinations: [
+                  const NavigationDestination(
                     icon: Icon(Icons.forum_outlined),
                     selectedIcon: Icon(Icons.forum_rounded),
                     label: 'Feed',
                   ),
-                  NavigationDestination(
+                  const NavigationDestination(
                     icon: Icon(Icons.category_outlined),
                     selectedIcon: Icon(Icons.category_rounded),
                     label: 'Categories',
                   ),
                   NavigationDestination(
-                    icon: Icon(Icons.notifications_outlined),
-                    selectedIcon: Icon(Icons.notifications_rounded),
+                    icon: _NotificationBadge(
+                      serverUrl: server.serverUrl,
+                      icon: Icons.notifications_outlined,
+                    ),
+                    selectedIcon: _NotificationBadge(
+                      serverUrl: server.serverUrl,
+                      icon: Icons.notifications_rounded,
+                    ),
                     label: 'Notifications',
                   ),
                 ],
@@ -215,6 +267,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
     final categoriesById = {for (final c in siteData.categories) c.id: c};
 
+    final unreadCount =
+        ref.watch(notificationListProvider(server.serverUrl)).unreadCount;
+
     return Row(
       children: [
         SidebarNavigation(
@@ -222,6 +277,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           onDestinationSelected: _onTabChanged,
           extended: breakpoint == LayoutBreakpoint.desktop,
           activeServer: breakpoint == LayoutBreakpoint.desktop ? server : null,
+          notificationBadgeCount: unreadCount,
         ),
         const VerticalDivider(width: 1),
         Expanded(flex: 2, child: content),
@@ -318,6 +374,20 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         categoriesById: categoriesById,
       ),
     );
+  }
+}
+
+class _NotificationBadge extends ConsumerWidget {
+  final String serverUrl;
+  final IconData icon;
+
+  const _NotificationBadge({required this.serverUrl, required this.icon});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unread = ref.watch(notificationListProvider(serverUrl)).unreadCount;
+    if (unread == 0) return Icon(icon);
+    return Badge.count(count: unread, child: Icon(icon));
   }
 }
 

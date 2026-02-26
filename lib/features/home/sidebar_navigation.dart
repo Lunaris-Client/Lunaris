@@ -8,6 +8,7 @@ class SidebarNavigation extends StatelessWidget {
   final ValueChanged<int> onDestinationSelected;
   final bool extended;
   final ServerAccount? activeServer;
+  final int notificationBadgeCount;
 
   const SidebarNavigation({
     super.key,
@@ -15,6 +16,7 @@ class SidebarNavigation extends StatelessWidget {
     required this.onDestinationSelected,
     this.extended = false,
     this.activeServer,
+    this.notificationBadgeCount = 0,
   });
 
   static const _destinations = [
@@ -44,14 +46,20 @@ class SidebarNavigation extends StatelessWidget {
         tooltip: 'Servers',
       ),
       destinations: [
-        for (final (icon, selectedIcon, label) in _destinations)
+        for (var i = 0; i < _destinations.length; i++)
           NavigationRailDestination(
-            icon: Icon(icon),
-            selectedIcon: Icon(selectedIcon),
-            label: Text(label),
+            icon: _badgedIcon(_destinations[i].$1, i == 2),
+            selectedIcon: _badgedIcon(_destinations[i].$2, i == 2),
+            label: Text(_destinations[i].$3),
           ),
       ],
     );
+  }
+
+  Widget _badgedIcon(IconData iconData, bool showBadge) {
+    final icon = Icon(iconData);
+    if (!showBadge || notificationBadgeCount == 0) return icon;
+    return Badge.count(count: notificationBadgeCount, child: icon);
   }
 
   Widget _buildExpanded(BuildContext context) {
@@ -75,6 +83,7 @@ class SidebarNavigation extends StatelessWidget {
                     label: _destinations[i].$3,
                     selected: selectedIndex == i,
                     onTap: () => onDestinationSelected(i),
+                    badgeCount: i == 2 ? notificationBadgeCount : 0,
                   ),
               ],
             ),
@@ -195,6 +204,7 @@ class _NavItem extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final int badgeCount;
 
   const _NavItem({
     required this.icon,
@@ -202,7 +212,24 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.badgeCount = 0,
   });
+
+  Widget _buildIcon(ThemeData theme) {
+    final color =
+        selected
+            ? theme.colorScheme.onSecondaryContainer
+            : theme.colorScheme.onSurfaceVariant;
+    final iconWidget = Icon(
+      selected ? selectedIcon : icon,
+      size: 24,
+      color: color,
+    );
+    if (badgeCount > 0) {
+      return Badge.count(count: badgeCount, child: iconWidget);
+    }
+    return iconWidget;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -223,14 +250,7 @@ class _NavItem extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
-                Icon(
-                  selected ? selectedIcon : icon,
-                  size: 24,
-                  color:
-                      selected
-                          ? theme.colorScheme.onSecondaryContainer
-                          : theme.colorScheme.onSurfaceVariant,
-                ),
+                _buildIcon(theme),
                 const SizedBox(width: 12),
                 Text(
                   label,
