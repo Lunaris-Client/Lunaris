@@ -5,12 +5,15 @@ class DiscourseApiClient {
   late final Dio _dio;
 
   DiscourseApiClient({Dio? dio}) {
-    _dio = dio ??
-        Dio(BaseOptions(
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 10),
-          headers: {'Accept': 'application/json'},
-        ));
+    _dio =
+        dio ??
+        Dio(
+          BaseOptions(
+            connectTimeout: const Duration(seconds: 10),
+            receiveTimeout: const Duration(seconds: 10),
+            headers: {'Accept': 'application/json'},
+          ),
+        );
   }
 
   String normalizeUrl(String url) {
@@ -44,8 +47,7 @@ class DiscourseApiClient {
     );
   }
 
-  Future<CurrentUser> fetchCurrentUser(
-      String serverUrl, String apiKey) async {
+  Future<CurrentUser> fetchCurrentUser(String serverUrl, String apiKey) async {
     final response = await _dio.get(
       '$serverUrl/session/current.json',
       options: Options(headers: {'User-Api-Key': apiKey}),
@@ -63,7 +65,9 @@ class DiscourseApiClient {
   }
 
   Future<Map<String, dynamic>> fetchSiteData(
-      String serverUrl, String apiKey) async {
+    String serverUrl,
+    String apiKey,
+  ) async {
     final response = await _dio.get(
       '$serverUrl/site.json',
       options: Options(
@@ -85,7 +89,10 @@ class DiscourseApiClient {
     String? period,
   }) async {
     String path;
-    if (categoryId != null && categorySlug != null) {
+    if (categoryId != null && categorySlug != null && tagName != null) {
+      path =
+          '$serverUrl/tags/c/$categorySlug/$categoryId/$tagName/l/$filter.json';
+    } else if (categoryId != null && categorySlug != null) {
       path = '$serverUrl/c/$categorySlug/$categoryId/l/$filter.json';
     } else if (tagName != null) {
       path = '$serverUrl/tag/$tagName/l/$filter.json';

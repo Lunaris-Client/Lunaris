@@ -9,12 +9,20 @@ class TopicListView extends ConsumerStatefulWidget {
   final String serverUrl;
   final SiteData siteData;
   final String filter;
+  final int? categoryId;
+  final String? categorySlug;
+  final String? tagName;
+  final String? period;
 
   const TopicListView({
     super.key,
     required this.serverUrl,
     required this.siteData,
     this.filter = 'latest',
+    this.categoryId,
+    this.categorySlug,
+    this.tagName,
+    this.period,
   });
 
   @override
@@ -23,11 +31,18 @@ class TopicListView extends ConsumerStatefulWidget {
 
 class _TopicListViewState extends ConsumerState<TopicListView> {
   final _scrollController = ScrollController();
+  late final Map<int, SiteCategory> _categoriesById = {
+    for (final cat in widget.siteData.categories) cat.id: cat,
+  };
 
   TopicListParams get _params => TopicListParams(
-        serverUrl: widget.serverUrl,
-        filter: widget.filter,
-      );
+    serverUrl: widget.serverUrl,
+    filter: widget.filter,
+    categoryId: widget.categoryId,
+    categorySlug: widget.categorySlug,
+    tagName: widget.tagName,
+    period: widget.period,
+  );
 
   @override
   void initState() {
@@ -48,19 +63,10 @@ class _TopicListViewState extends ConsumerState<TopicListView> {
     }
   }
 
-  Map<int, SiteCategory> get _categoriesById {
-    final map = <int, SiteCategory>{};
-    for (final cat in widget.siteData.categories) {
-      map[cat.id] = cat;
-    }
-    return map;
-  }
-
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(topicListProvider(_params));
     final theme = Theme.of(context);
-    final categories = _categoriesById;
 
     if (state.isLoading && state.topics.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -73,12 +79,13 @@ class _TopicListViewState extends ConsumerState<TopicListView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.cloud_off_rounded,
-                  size: 48,
-                  color: theme.colorScheme.error.withValues(alpha: 0.6)),
+              Icon(
+                Icons.cloud_off_rounded,
+                size: 48,
+                color: theme.colorScheme.error.withValues(alpha: 0.6),
+              ),
               const SizedBox(height: 12),
-              Text('Failed to load topics',
-                  style: theme.textTheme.titleMedium),
+              Text('Failed to load topics', style: theme.textTheme.titleMedium),
               const SizedBox(height: 8),
               Text(
                 '${state.error}',
@@ -91,8 +98,9 @@ class _TopicListViewState extends ConsumerState<TopicListView> {
               ),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: () =>
-                    ref.read(topicListProvider(_params).notifier).refresh(),
+                onPressed:
+                    () =>
+                        ref.read(topicListProvider(_params).notifier).refresh(),
                 icon: const Icon(Icons.refresh_rounded),
                 label: const Text('Retry'),
               ),
@@ -107,14 +115,18 @@ class _TopicListViewState extends ConsumerState<TopicListView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.forum_outlined,
-                size: 48,
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+            Icon(
+              Icons.forum_outlined,
+              size: 48,
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+            ),
             const SizedBox(height: 12),
-            Text('No topics yet',
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                )),
+            Text(
+              'No topics yet',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
       );
@@ -126,8 +138,8 @@ class _TopicListViewState extends ConsumerState<TopicListView> {
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: state.topics.length + (state.hasMore ? 1 : 0),
-        separatorBuilder: (_, __) =>
-            const Divider(height: 1, indent: 16, endIndent: 16),
+        separatorBuilder:
+            (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
         itemBuilder: (context, index) {
           if (index == state.topics.length) {
             return const Padding(
@@ -139,7 +151,7 @@ class _TopicListViewState extends ConsumerState<TopicListView> {
           final topic = state.topics[index];
           return TopicCard(
             topic: topic,
-            category: categories[topic.categoryId],
+            category: _categoriesById[topic.categoryId],
             serverUrl: widget.serverUrl,
           );
         },

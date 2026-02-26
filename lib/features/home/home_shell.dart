@@ -2,15 +2,71 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lunaris/core/models/site_category.dart';
 import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/features/home/server_switcher_drawer.dart';
 import 'package:lunaris/features/feed/topic_list_view.dart';
+import 'package:lunaris/features/feed/feed_filter_bar.dart';
+import 'package:lunaris/features/feed/category_filter_sheet.dart';
+import 'package:lunaris/features/feed/tag_filter_sheet.dart';
 
-class HomeShell extends ConsumerWidget {
+class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeShell> createState() => _HomeShellState();
+}
+
+class _HomeShellState extends ConsumerState<HomeShell> {
+  String _activeFilter = 'latest';
+  SiteCategory? _selectedCategory;
+  String? _selectedTag;
+  String _selectedPeriod = 'all';
+
+  void _onFilterChanged(String filter) {
+    if (filter == _activeFilter) return;
+    setState(() => _activeFilter = filter);
+  }
+
+  void _onPeriodChanged(String period) {
+    if (period == _selectedPeriod) return;
+    setState(() => _selectedPeriod = period);
+  }
+
+  Future<void> _showCategorySheet(List<SiteCategory> categories) async {
+    final result = await showModalBottomSheet<dynamic>(
+      context: context,
+      isScrollControlled: true,
+      builder:
+          (_) => CategoryFilterSheet(
+            categories: categories,
+            selected: _selectedCategory,
+          ),
+    );
+    if (!mounted) return;
+    if (result == 'clear') {
+      setState(() => _selectedCategory = null);
+    } else if (result is SiteCategory) {
+      setState(() => _selectedCategory = result);
+    }
+  }
+
+  Future<void> _showTagSheet(List<String> tags) async {
+    final result = await showModalBottomSheet<dynamic>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => TagFilterSheet(tags: tags, selected: _selectedTag),
+    );
+    if (!mounted) return;
+    if (result == 'clear') {
+      setState(() => _selectedTag = null);
+    } else if (result is String) {
+      setState(() => _selectedTag = result);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final server = ref.watch(activeServerProvider);
     final theme = Theme.of(context);
 
@@ -30,9 +86,10 @@ class HomeShell extends ConsumerWidget {
       }
     });
 
-    final avatarUrl = server.avatarTemplate != null
-        ? '${server.serverUrl}${server.avatarTemplate!.replaceAll('{size}', '40')}'
-        : null;
+    final avatarUrl =
+        server.avatarTemplate != null
+            ? '${server.serverUrl}${server.avatarTemplate!.replaceAll('{size}', '40')}'
+            : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -40,36 +97,72 @@ class HomeShell extends ConsumerWidget {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),
-            child: avatarUrl != null
-                ? CircleAvatar(
-                    radius: 16,
-                    backgroundImage: CachedNetworkImageProvider(avatarUrl),
-                  )
-                : CircleAvatar(
-                    radius: 16,
-                    backgroundColor: theme.colorScheme.primaryContainer,
-                    child: Icon(Icons.person_rounded,
+            child:
+                avatarUrl != null
+                    ? CircleAvatar(
+                      radius: 16,
+                      backgroundImage: CachedNetworkImageProvider(avatarUrl),
+                    )
+                    : CircleAvatar(
+                      radius: 16,
+                      backgroundColor: theme.colorScheme.primaryContainer,
+                      child: Icon(
+                        Icons.person_rounded,
                         size: 18,
-                        color: theme.colorScheme.onPrimaryContainer),
-                  ),
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                    ),
           ),
         ],
       ),
       drawer: const ServerSwitcherDrawer(),
       body: siteAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _BootstrapError(
-          error: error,
-          onRetry: () =>
-              ref.read(siteDataProvider(server.serverUrl).notifier).refresh(),
-        ),
+        error:
+            (error, _) => _BootstrapError(
+              error: error,
+              onRetry:
+                  () =>
+                      ref
+                          .read(siteDataProvider(server.serverUrl).notifier)
+                          .refresh(),
+            ),
         data: (siteData) {
           if (siteData == null) {
             return const Center(child: CircularProgressIndicator());
           }
-          return TopicListView(
-            serverUrl: server.serverUrl,
-            siteData: siteData,
+          final effectivePeriod =
+              _activeFilter == 'top' ? _selectedPeriod : null;
+          return Column(
+            children: [
+              FeedFilterBar(
+                activeFilter: _activeFilter,
+                onFilterChanged: _onFilterChanged,
+                activePeriod: _selectedPeriod,
+                onPeriodChanged: _onPeriodChanged,
+                periods: siteData.periods,
+                activeCategory: _selectedCategory,
+                onCategoryTap: () => _showCategorySheet(siteData.categories),
+                onCategoryClear: () => setState(() => _selectedCategory = null),
+                activeTag: _selectedTag,
+                onTagTap: () => _showTagSheet(siteData.topTags),
+                onTagClear: () => setState(() => _selectedTag = null),
+              ),
+              Expanded(
+                child: TopicListView(
+                  key: ValueKey(
+                    '$_activeFilter-${_selectedCategory?.id}-$_selectedTag-$effectivePeriod',
+                  ),
+                  serverUrl: server.serverUrl,
+                  siteData: siteData,
+                  filter: _activeFilter,
+                  categoryId: _selectedCategory?.id,
+                  categorySlug: _selectedCategory?.slug,
+                  tagName: _selectedTag,
+                  period: effectivePeriod,
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -92,9 +185,11 @@ class _BootstrapError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.cloud_off_rounded,
-                size: 64,
-                color: theme.colorScheme.error.withValues(alpha: 0.6)),
+            Icon(
+              Icons.cloud_off_rounded,
+              size: 64,
+              color: theme.colorScheme.error.withValues(alpha: 0.6),
+            ),
             const SizedBox(height: 16),
             Text(
               'Failed to load site data',

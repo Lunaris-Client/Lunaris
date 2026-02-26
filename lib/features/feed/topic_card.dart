@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:lunaris/core/models/topic.dart';
 import 'package:lunaris/core/models/site_category.dart';
+import 'package:lunaris/core/utils/color_utils.dart';
 
 class TopicCard extends StatelessWidget {
   final Topic topic;
@@ -60,18 +61,27 @@ class TopicCard extends StatelessWidget {
           const SizedBox(width: 8),
         ],
         if (topic.pinned) ...[
-          Icon(Icons.push_pin_rounded,
-              size: 14, color: theme.colorScheme.primary),
+          Icon(
+            Icons.push_pin_rounded,
+            size: 14,
+            color: theme.colorScheme.primary,
+          ),
           const SizedBox(width: 4),
         ],
         if (topic.closed) ...[
-          Icon(Icons.lock_rounded,
-              size: 14, color: theme.colorScheme.onSurfaceVariant),
+          Icon(
+            Icons.lock_rounded,
+            size: 14,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(width: 4),
         ],
         if (topic.archived) ...[
-          Icon(Icons.inventory_2_rounded,
-              size: 14, color: theme.colorScheme.onSurfaceVariant),
+          Icon(
+            Icons.inventory_2_rounded,
+            size: 14,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(width: 4),
         ],
         const Spacer(),
@@ -116,14 +126,15 @@ class TopicCard extends StatelessWidget {
   }
 
   Widget _buildExcerpt(ThemeData theme) {
-    final cleaned = topic.excerpt!
-        .replaceAll(RegExp(r'<[^>]*>'), '')
-        .replaceAll('&hellip;', '...')
-        .replaceAll('&amp;', '&')
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll('&quot;', '"')
-        .trim();
+    final cleaned =
+        topic.excerpt!
+            .replaceAll(RegExp(r'<[^>]*>'), '')
+            .replaceAll('&hellip;', '...')
+            .replaceAll('&amp;', '&')
+            .replaceAll('&lt;', '<')
+            .replaceAll('&gt;', '>')
+            .replaceAll('&quot;', '"')
+            .trim();
     if (cleaned.isEmpty) return const SizedBox.shrink();
 
     return Text(
@@ -140,29 +151,28 @@ class TopicCard extends StatelessWidget {
     return Wrap(
       spacing: 6,
       runSpacing: 4,
-      children: topic.tags.take(5).map((tag) {
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            tag.name,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        );
-      }).toList(),
+      children:
+          topic.tags.take(5).map((tag) {
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                tag.name,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            );
+          }).toList(),
     );
   }
 
   Widget _buildFooter(ThemeData theme) {
-    final posterAvatars = topic.posters
-        .where((p) => p.user != null)
-        .take(5)
-        .toList();
+    final posterAvatars =
+        topic.posters.where((p) => p.user != null).take(5).toList();
 
     return Row(
       children: [
@@ -175,10 +185,7 @@ class TopicCard extends StatelessWidget {
           value: topic.replyCount,
         ),
         const SizedBox(width: 12),
-        _StatChip(
-          icon: Icons.visibility_outlined,
-          value: topic.views,
-        ),
+        _StatChip(icon: Icons.visibility_outlined, value: topic.views),
         if (topic.likeCount > 0) ...[
           const SizedBox(width: 12),
           _StatChip(
@@ -199,7 +206,7 @@ class _CategoryBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = _parseHexColor(category.color);
+    final color = parseHexColor(category.color);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -223,15 +230,6 @@ class _CategoryBadge extends StatelessWidget {
       ],
     );
   }
-
-  static Color _parseHexColor(String hex) {
-    hex = hex.replaceFirst('#', '');
-    if (hex.length == 3) {
-      hex = hex.split('').map((c) => '$c$c').join();
-    }
-    if (hex.length == 6) hex = 'FF$hex';
-    return Color(int.parse(hex, radix: 16));
-  }
 }
 
 class _AvatarRow extends StatelessWidget {
@@ -246,20 +244,22 @@ class _AvatarRow extends StatelessWidget {
       height: 24,
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: posters.map((poster) {
-          final template = poster.user!.avatarTemplate;
-          final url = template.startsWith('http')
-              ? template.replaceAll('{size}', '48')
-              : '$serverUrl${template.replaceAll('{size}', '48')}';
+        children:
+            posters.map((poster) {
+              final template = poster.user!.avatarTemplate;
+              final url =
+                  template.startsWith('http')
+                      ? template.replaceAll('{size}', '48')
+                      : '$serverUrl${template.replaceAll('{size}', '48')}';
 
-          return Padding(
-            padding: const EdgeInsets.only(right: 2),
-            child: CircleAvatar(
-              radius: 12,
-              backgroundImage: CachedNetworkImageProvider(url),
-            ),
-          );
-        }).toList(),
+              return Padding(
+                padding: const EdgeInsets.only(right: 2),
+                child: CircleAvatar(
+                  radius: 12,
+                  backgroundImage: CachedNetworkImageProvider(url),
+                ),
+              );
+            }).toList(),
       ),
     );
   }
@@ -269,10 +269,7 @@ class _StatChip extends StatelessWidget {
   final IconData icon;
   final int value;
 
-  const _StatChip({
-    required this.icon,
-    required this.value,
-  });
+  const _StatChip({required this.icon, required this.value});
 
   @override
   Widget build(BuildContext context) {
