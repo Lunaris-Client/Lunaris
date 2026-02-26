@@ -74,6 +74,40 @@ class DiscourseApiClient {
     return response.data as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> fetchTopicList(
+    String serverUrl,
+    String apiKey, {
+    String filter = 'latest',
+    int? page,
+    int? categoryId,
+    String? categorySlug,
+    String? tagName,
+    String? period,
+  }) async {
+    String path;
+    if (categoryId != null && categorySlug != null) {
+      path = '$serverUrl/c/$categorySlug/$categoryId/l/$filter.json';
+    } else if (tagName != null) {
+      path = '$serverUrl/tag/$tagName/l/$filter.json';
+    } else {
+      path = '$serverUrl/$filter.json';
+    }
+
+    final queryParams = <String, dynamic>{};
+    if (page != null && page > 0) queryParams['page'] = page;
+    if (period != null && filter == 'top') queryParams['period'] = period;
+
+    final response = await _dio.get(
+      path,
+      queryParameters: queryParams.isEmpty ? null : queryParams,
+      options: Options(
+        headers: {'User-Api-Key': apiKey},
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
   String? _resolveUrl(String baseUrl, String? path) {
     if (path == null || path.isEmpty) return null;
     if (path.startsWith('http')) return path;

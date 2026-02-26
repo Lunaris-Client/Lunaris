@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/features/home/server_switcher_drawer.dart';
+import 'package:lunaris/features/feed/topic_list_view.dart';
 
 class HomeShell extends ConsumerWidget {
   const HomeShell({super.key});
@@ -66,101 +67,12 @@ class HomeShell extends ConsumerWidget {
           if (siteData == null) {
             return const Center(child: CircularProgressIndicator());
           }
-          return _HomeContent(
-            siteName: server.siteName,
-            username: server.username,
-            categoryCount: siteData.categories.length,
-            tagCount: siteData.topTags.length,
-            filterCount: siteData.filters.length,
-            fetchedAt: siteData.fetchedAt,
+          return TopicListView(
+            serverUrl: server.serverUrl,
+            siteData: siteData,
           );
         },
       ),
-    );
-  }
-}
-
-class _HomeContent extends StatelessWidget {
-  final String siteName;
-  final String? username;
-  final int categoryCount;
-  final int tagCount;
-  final int filterCount;
-  final DateTime fetchedAt;
-
-  const _HomeContent({
-    required this.siteName,
-    required this.username,
-    required this.categoryCount,
-    required this.tagCount,
-    required this.filterCount,
-    required this.fetchedAt,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(siteName, style: theme.textTheme.headlineSmall),
-          if (username != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Logged in as $username',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-          const SizedBox(height: 24),
-          _InfoChip(
-            icon: Icons.category_rounded,
-            label: '$categoryCount categories',
-          ),
-          const SizedBox(height: 8),
-          _InfoChip(
-            icon: Icons.tag_rounded,
-            label: '$tagCount top tags',
-          ),
-          const SizedBox(height: 8),
-          _InfoChip(
-            icon: Icons.filter_list_rounded,
-            label: '$filterCount filters',
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Site data cached at ${fetchedAt.toLocal().toString().substring(0, 19)}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _InfoChip({
-    required this.icon,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: theme.colorScheme.primary),
-        const SizedBox(width: 8),
-        Text(label, style: theme.textTheme.bodyMedium),
-      ],
     );
   }
 }
