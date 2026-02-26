@@ -3,6 +3,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:lunaris/core/models/post.dart';
 import 'package:lunaris/core/utils/color_utils.dart';
+import 'package:lunaris/features/topic/cooked_html_renderer.dart';
+import 'package:lunaris/features/topic/full_screen_image_viewer.dart';
 
 class PostItem extends StatefulWidget {
   final Post post;
@@ -48,7 +50,7 @@ class _PostItemState extends State<PostItem> {
           if (widget.showReplyIndicator && post.replyToPostNumber != null)
             _buildReplyIndicator(theme),
           const SizedBox(height: 8),
-          _buildContent(theme),
+          _buildContent(),
           const SizedBox(height: 8),
           _buildActionBar(theme),
         ],
@@ -57,9 +59,10 @@ class _PostItemState extends State<PostItem> {
   }
 
   Widget _buildAuthorRow(ThemeData theme) {
-    final avatarUrl = post.avatarTemplate != null
-        ? resolveAvatarUrl(widget.serverUrl, post.avatarTemplate!, size: 40)
-        : null;
+    final avatarUrl =
+        post.avatarTemplate != null
+            ? resolveAvatarUrl(widget.serverUrl, post.avatarTemplate!, size: 40)
+            : null;
 
     return Row(
       children: [
@@ -72,8 +75,11 @@ class _PostItemState extends State<PostItem> {
           CircleAvatar(
             radius: 18,
             backgroundColor: theme.colorScheme.primaryContainer,
-            child: Icon(Icons.person, size: 18,
-                color: theme.colorScheme.onPrimaryContainer),
+            child: Icon(
+              Icons.person,
+              size: 18,
+              color: theme.colorScheme.onPrimaryContainer,
+            ),
           ),
         const SizedBox(width: 10),
         Expanded(
@@ -84,7 +90,9 @@ class _PostItemState extends State<PostItem> {
                 children: [
                   Flexible(
                     child: Text(
-                      post.name?.isNotEmpty == true ? post.name! : post.username,
+                      post.name?.isNotEmpty == true
+                          ? post.name!
+                          : post.username,
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -112,28 +120,35 @@ class _PostItemState extends State<PostItem> {
                   if (post.userTitle != null && post.userTitle!.isNotEmpty) ...[
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 1),
+                        horizontal: 6,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
-                        color: post.flairBgColor != null
-                            ? parseHexColor(post.flairBgColor!)
-                                .withValues(alpha: 0.15)
-                            : theme.colorScheme.primaryContainer,
+                        color:
+                            post.flairBgColor != null
+                                ? parseHexColor(
+                                  post.flairBgColor!,
+                                ).withValues(alpha: 0.15)
+                                : theme.colorScheme.primaryContainer,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         post.userTitle!,
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: post.flairColor != null
-                              ? parseHexColor(post.flairColor!)
-                              : theme.colorScheme.primary,
+                          color:
+                              post.flairColor != null
+                                  ? parseHexColor(post.flairColor!)
+                                  : theme.colorScheme.primary,
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
                   ],
                   GestureDetector(
-                    onTap: () =>
-                        setState(() => _showAbsoluteTime = !_showAbsoluteTime),
+                    onTap:
+                        () => setState(
+                          () => _showAbsoluteTime = !_showAbsoluteTime,
+                        ),
                     child: Text(
                       _showAbsoluteTime
                           ? _formatAbsolute(post.createdAt)
@@ -162,17 +177,17 @@ class _PostItemState extends State<PostItem> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
       decoration: BoxDecoration(
-        color: post.admin
-            ? theme.colorScheme.error.withValues(alpha: 0.12)
-            : theme.colorScheme.tertiary.withValues(alpha: 0.12),
+        color:
+            post.admin
+                ? theme.colorScheme.error.withValues(alpha: 0.12)
+                : theme.colorScheme.tertiary.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(3),
       ),
       child: Text(
         post.admin ? 'admin' : 'mod',
         style: theme.textTheme.labelSmall?.copyWith(
-          color: post.admin
-              ? theme.colorScheme.error
-              : theme.colorScheme.tertiary,
+          color:
+              post.admin ? theme.colorScheme.error : theme.colorScheme.tertiary,
           fontSize: 10,
         ),
       ),
@@ -190,8 +205,11 @@ class _PostItemState extends State<PostItem> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.reply_rounded, size: 14,
-                  color: theme.colorScheme.onSurfaceVariant),
+              Icon(
+                Icons.reply_rounded,
+                size: 14,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
               const SizedBox(width: 4),
               Text(
                 'reply to #${post.replyToPostNumber}',
@@ -206,14 +224,13 @@ class _PostItemState extends State<PostItem> {
     );
   }
 
-  Widget _buildContent(ThemeData theme) {
-    final text = stripHtml(post.cooked);
-
+  Widget _buildContent() {
     return Padding(
       padding: const EdgeInsets.only(left: 46),
-      child: SelectableText(
-        text,
-        style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+      child: CookedHtmlRenderer(
+        html: post.cooked,
+        serverUrl: widget.serverUrl,
+        onImageTap: (url) => FullScreenImageViewer.show(context, url),
       ),
     );
   }
@@ -227,7 +244,8 @@ class _PostItemState extends State<PostItem> {
       child: Row(
         children: [
           _ActionButton(
-            icon: liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+            icon:
+                liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
             label: post.likeCount > 0 ? formatCount(post.likeCount) : null,
             color: liked ? theme.colorScheme.error : null,
             onTap: canLike || liked ? widget.onLikeTap : null,
@@ -239,21 +257,22 @@ class _PostItemState extends State<PostItem> {
               onTap: null,
             ),
           _ActionButton(
-            icon: post.bookmarked
-                ? Icons.bookmark_rounded
-                : Icons.bookmark_border_rounded,
+            icon:
+                post.bookmarked
+                    ? Icons.bookmark_rounded
+                    : Icons.bookmark_border_rounded,
             color: post.bookmarked ? theme.colorScheme.primary : null,
             onTap: widget.onBookmarkTap,
           ),
-          _ActionButton(
-            icon: Icons.share_outlined,
-            onTap: widget.onShareTap,
-          ),
+          _ActionButton(icon: Icons.share_outlined, onTap: widget.onShareTap),
           if (post.wiki)
             Padding(
               padding: const EdgeInsets.only(left: 4),
-              child: Icon(Icons.edit_note_rounded, size: 16,
-                  color: theme.colorScheme.tertiary),
+              child: Icon(
+                Icons.edit_note_rounded,
+                size: 16,
+                color: theme.colorScheme.tertiary,
+              ),
             ),
         ],
       ),
@@ -272,12 +291,7 @@ class _ActionButton extends StatelessWidget {
   final Color? color;
   final VoidCallback? onTap;
 
-  const _ActionButton({
-    required this.icon,
-    this.label,
-    this.color,
-    this.onTap,
-  });
+  const _ActionButton({required this.icon, this.label, this.color, this.onTap});
 
   @override
   Widget build(BuildContext context) {
