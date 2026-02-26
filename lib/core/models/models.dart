@@ -10,3 +10,4 @@ export 'topic_detail.dart';
 export 'discourse_notification.dart';
 export 'search_result.dart';
 export 'user_profile.dart';
+export 'bookmark.dart';

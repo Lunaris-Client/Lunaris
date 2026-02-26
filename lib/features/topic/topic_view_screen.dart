@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:lunaris/core/models/site_category.dart';
 import 'package:lunaris/core/providers/topic_detail_provider.dart';
 import 'package:lunaris/core/utils/color_utils.dart';
+import 'package:lunaris/features/bookmarks/bookmark_reminder_picker.dart';
 import 'package:lunaris/features/composer/reply_composer_screen.dart';
 import 'package:lunaris/features/topic/post_item.dart';
 import 'package:lunaris/features/topic/timeline_scrubber.dart';
@@ -236,6 +237,18 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
 
   void _shareTopic() {
     _showShareSheet(context, _topicUrl);
+  }
+
+  Future<void> _bookmarkWithReminder(int postId) async {
+    final result = await showBookmarkReminderPicker(context);
+    if (result == null) return;
+
+    _notifier.bookmarkWithReminder(
+      postId,
+      name: result.name,
+      reminderAt: result.reminderAt?.toUtc().toIso8601String(),
+      autoDeletePreference: result.autoDeletePreference,
+    );
   }
 
   static void _showShareSheet(BuildContext context, String url) {
@@ -589,6 +602,7 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
                       serverUrl: widget.serverUrl,
                       onLikeTap: () => _notifier.toggleLike(post.id),
                       onBookmarkTap: () => _notifier.toggleBookmark(post.id),
+                      onBookmarkLongPress: () => _bookmarkWithReminder(post.id),
                       onShareTap: () => _sharePost(post.postNumber),
                       onReplyToTap: _scrollToPostNumber,
                       onReplyTap:

@@ -11,6 +11,7 @@ class PostItem extends StatefulWidget {
   final String serverUrl;
   final VoidCallback? onLikeTap;
   final VoidCallback? onBookmarkTap;
+  final VoidCallback? onBookmarkLongPress;
   final VoidCallback? onShareTap;
   final VoidCallback? onReplyTap;
   final ValueChanged<int>? onReplyToTap;
@@ -22,6 +23,7 @@ class PostItem extends StatefulWidget {
     required this.serverUrl,
     this.onLikeTap,
     this.onBookmarkTap,
+    this.onBookmarkLongPress,
     this.onShareTap,
     this.onReplyTap,
     this.onReplyToTap,
@@ -263,6 +265,7 @@ class _PostItemState extends State<PostItem> {
                     : Icons.bookmark_border_rounded,
             color: post.bookmarked ? theme.colorScheme.primary : null,
             onTap: widget.onBookmarkTap,
+            onLongPress: widget.onBookmarkLongPress,
           ),
           _ActionButton(icon: Icons.share_outlined, onTap: widget.onShareTap),
           _ActionButton(icon: Icons.reply_rounded, onTap: widget.onReplyTap),
@@ -291,8 +294,15 @@ class _ActionButton extends StatelessWidget {
   final String? label;
   final Color? color;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
-  const _ActionButton({required this.icon, this.label, this.color, this.onTap});
+  const _ActionButton({
+    required this.icon,
+    this.label,
+    this.color,
+    this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -302,6 +312,7 @@ class _ActionButton extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(4),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),

@@ -304,6 +304,51 @@ class TopicDetailNotifier extends StateNotifier<TopicDetailState> {
     }
   }
 
+  Future<void> bookmarkWithReminder(
+    int postId, {
+    String? name,
+    String? reminderAt,
+    int? autoDeletePreference,
+  }) async {
+    final post = _findPost(postId);
+    if (post == null) return;
+
+    _updatePost(postId, (p) => p.copyWith(bookmarked: true));
+
+    try {
+      final apiKey = await _getApiKey();
+      if (apiKey == null) return;
+
+      if (post.bookmarked && post.bookmarkId != null) {
+        await _apiClient.updateBookmark(
+          _params.serverUrl,
+          apiKey,
+          post.bookmarkId!,
+          name: name,
+          reminderAt: reminderAt,
+          autoDeletePreference: autoDeletePreference,
+        );
+      } else {
+        final result = await _apiClient.createBookmark(
+          _params.serverUrl,
+          apiKey,
+          bookmarkableId: postId,
+          name: name,
+          reminderAt: reminderAt,
+          autoDeletePreference: autoDeletePreference,
+        );
+        final newId = result['id'] as int?;
+        _updatePost(postId, (p) => p.copyWith(bookmarkId: newId));
+      }
+    } catch (_) {
+      _updatePost(
+        postId,
+        (p) =>
+            p.copyWith(bookmarked: post.bookmarked, bookmarkId: post.bookmarkId),
+      );
+    }
+  }
+
   Future<void> toggleTopicBookmark() async {
     if (state.topic == null) return;
 

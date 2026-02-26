@@ -20,6 +20,7 @@ import 'package:lunaris/core/providers/message_bus_provider.dart';
 import 'package:lunaris/core/providers/notification_provider.dart';
 import 'package:lunaris/core/providers/notification_settings_provider.dart';
 import 'package:lunaris/core/services/local_notification_service.dart';
+import 'package:lunaris/features/bookmarks/bookmark_list_view.dart';
 import 'package:lunaris/features/composer/new_topic_composer_screen.dart';
 import 'package:lunaris/features/composer/pm_composer_screen.dart';
 import 'package:lunaris/features/messages/pm_inbox_view.dart';
@@ -296,7 +297,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                   );
                 },
               )
-              : _currentTab == 3
+              : _currentTab == 4
                   ? FloatingActionButton(
                       heroTag: 'fab_new_message',
                       onPressed: _openNewMessageComposer,
@@ -349,6 +350,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                     label: 'Notifications',
                   ),
                   const NavigationDestination(
+                    icon: Icon(Icons.bookmark_outline_rounded),
+                    selectedIcon: Icon(Icons.bookmark_rounded),
+                    label: 'Bookmarks',
+                  ),
+                  const NavigationDestination(
                     icon: Icon(Icons.mail_outlined),
                     selectedIcon: Icon(Icons.mail_rounded),
                     label: 'Messages',
@@ -374,6 +380,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       case 2:
         content = _buildNotificationsTab(server);
       case 3:
+        content = _buildBookmarksTab(server);
+      case 4:
         content = _buildMessagesTab(server);
       default:
         content = _buildFeedTab(siteData, server.serverUrl);
@@ -452,6 +460,17 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       onNotificationTap: (topicId, postNumber) {
         _navigateToTopic(server, topicId);
       },
+    );
+  }
+
+  Widget _buildBookmarksTab(ServerAccount server) {
+    final username = server.username;
+    if (username == null || username.isEmpty) {
+      return const Center(child: Text('Username not available'));
+    }
+    return BookmarkListView(
+      serverUrl: server.serverUrl,
+      username: username,
     );
   }
 

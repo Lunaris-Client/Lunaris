@@ -192,16 +192,46 @@ class DiscourseApiClient {
     String apiKey, {
     required int bookmarkableId,
     String bookmarkableType = 'Post',
+    String? name,
+    String? reminderAt,
+    int? autoDeletePreference,
   }) async {
+    final data = <String, dynamic>{
+      'bookmarkable_id': bookmarkableId,
+      'bookmarkable_type': bookmarkableType,
+    };
+    if (name != null) data['name'] = name;
+    if (reminderAt != null) data['reminder_at'] = reminderAt;
+    if (autoDeletePreference != null) {
+      data['auto_delete_preference'] = autoDeletePreference;
+    }
     final response = await _dio.post(
       '$serverUrl/bookmarks',
-      data: {
-        'bookmarkable_id': bookmarkableId,
-        'bookmarkable_type': bookmarkableType,
-      },
+      data: data,
       options: _authHeaders(apiKey),
     );
     return response.data as Map<String, dynamic>;
+  }
+
+  Future<void> updateBookmark(
+    String serverUrl,
+    String apiKey,
+    int bookmarkId, {
+    String? name,
+    String? reminderAt,
+    int? autoDeletePreference,
+  }) async {
+    final data = <String, dynamic>{};
+    if (name != null) data['name'] = name;
+    if (reminderAt != null) data['reminder_at'] = reminderAt;
+    if (autoDeletePreference != null) {
+      data['auto_delete_preference'] = autoDeletePreference;
+    }
+    await _dio.put(
+      '$serverUrl/bookmarks/$bookmarkId',
+      data: data,
+      options: _authHeaders(apiKey),
+    );
   }
 
   Future<void> deleteBookmark(
@@ -213,6 +243,22 @@ class DiscourseApiClient {
       '$serverUrl/bookmarks/$bookmarkId',
       options: _authHeaders(apiKey),
     );
+  }
+
+  Future<Map<String, dynamic>> fetchBookmarks(
+    String serverUrl,
+    String apiKey, {
+    required String username,
+    int? page,
+  }) async {
+    final params = <String, dynamic>{};
+    if (page != null && page > 0) params['page'] = page;
+    final response = await _dio.get(
+      '$serverUrl/u/$username/bookmarks.json',
+      queryParameters: params.isEmpty ? null : params,
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
   }
 
   Future<void> setTopicNotificationLevel(
