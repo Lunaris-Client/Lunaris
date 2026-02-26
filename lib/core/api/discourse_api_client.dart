@@ -156,4 +156,97 @@ class DiscourseApiClient {
     if (path.startsWith('http')) return path;
     return '$baseUrl$path';
   }
+
+  Options _authHeaders(String apiKey) =>
+      Options(headers: {'User-Api-Key': apiKey});
+
+  Future<Map<String, dynamic>> createPostAction(
+    String serverUrl,
+    String apiKey, {
+    required int postId,
+    required int postActionTypeId,
+  }) async {
+    final response = await _dio.post(
+      '$serverUrl/post_actions',
+      data: {'id': postId, 'post_action_type_id': postActionTypeId},
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<void> deletePostAction(
+    String serverUrl,
+    String apiKey, {
+    required int postId,
+    required int postActionTypeId,
+  }) async {
+    await _dio.delete(
+      '$serverUrl/post_actions/$postId',
+      queryParameters: {'post_action_type_id': postActionTypeId},
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<Map<String, dynamic>> createBookmark(
+    String serverUrl,
+    String apiKey, {
+    required int bookmarkableId,
+    String bookmarkableType = 'Post',
+  }) async {
+    final response = await _dio.post(
+      '$serverUrl/bookmarks',
+      data: {
+        'bookmarkable_id': bookmarkableId,
+        'bookmarkable_type': bookmarkableType,
+      },
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<void> deleteBookmark(
+    String serverUrl,
+    String apiKey,
+    int bookmarkId,
+  ) async {
+    await _dio.delete(
+      '$serverUrl/bookmarks/$bookmarkId',
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> setTopicNotificationLevel(
+    String serverUrl,
+    String apiKey,
+    int topicId,
+    int notificationLevel,
+  ) async {
+    await _dio.post(
+      '$serverUrl/t/$topicId/notifications',
+      data: {'notification_level': notificationLevel},
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> bookmarkTopic(
+    String serverUrl,
+    String apiKey,
+    int topicId,
+  ) async {
+    await _dio.put(
+      '$serverUrl/t/$topicId/bookmark',
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> unbookmarkTopic(
+    String serverUrl,
+    String apiKey,
+    int topicId,
+  ) async {
+    await _dio.put(
+      '$serverUrl/t/$topicId/remove_bookmarks',
+      options: _authHeaders(apiKey),
+    );
+  }
 }

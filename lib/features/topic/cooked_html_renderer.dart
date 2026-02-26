@@ -124,6 +124,26 @@ class CookedHtmlRenderer extends StatelessWidget {
     final localName = element.localName as String?;
     final classes = element.classes as Iterable<String>? ?? [];
 
+    if (localName == 'img' && classes.contains('emoji')) {
+      final src = element.attributes['src'] as String?;
+      if (src != null) {
+        final resolvedSrc = _resolveUrl(serverUrl, src);
+        final title = element.attributes['title'] as String?;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 1),
+          child: CachedNetworkImage(
+            imageUrl: resolvedSrc,
+            width: 20,
+            height: 20,
+            placeholder: (_, __) => const SizedBox(width: 20, height: 20),
+            errorWidget:
+                (_, __, ___) =>
+                    Text(title ?? '', style: const TextStyle(fontSize: 14)),
+          ),
+        );
+      }
+    }
+
     if (localName == 'div' && classes.contains('lightbox-wrapper')) {
       final img = element.querySelector('img');
       if (img != null) {

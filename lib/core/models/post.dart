@@ -35,6 +35,7 @@ class Post with _$Post {
     @Default(false) bool canRecover,
     @Default(false) bool canWiki,
     @Default(false) bool bookmarked,
+    int? bookmarkId,
     @Default(false) bool read,
     String? flairName,
     String? flairUrl,
@@ -46,9 +47,11 @@ class Post with _$Post {
   factory Post.fromJson(Map<String, dynamic> json) => _$PostFromJson(json);
 
   factory Post.fromApiJson(Map<String, dynamic> json) {
-    final actions = (json['actions_summary'] as List<dynamic>?)
-            ?.map((a) =>
-                PostActionSummary.fromApiJson(a as Map<String, dynamic>))
+    final actions =
+        (json['actions_summary'] as List<dynamic>?)
+            ?.map(
+              (a) => PostActionSummary.fromApiJson(a as Map<String, dynamic>),
+            )
             .toList() ??
         [];
 
@@ -60,15 +63,17 @@ class Post with _$Post {
       avatarTemplate: json['avatar_template'] as String?,
       cooked: json['cooked'] as String? ?? '',
       createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'] as String)
-          : null,
+      updatedAt:
+          json['updated_at'] != null
+              ? DateTime.parse(json['updated_at'] as String)
+              : null,
       replyToPostNumber: json['reply_to_post_number'] as int?,
       replyCount: json['reply_count'] as int? ?? 0,
       quoteCount: json['quote_count'] as int? ?? 0,
-      likeCount: json['actions_summary'] != null
-          ? _extractLikeCount(json['actions_summary'] as List)
-          : 0,
+      likeCount:
+          json['actions_summary'] != null
+              ? _extractLikeCount(json['actions_summary'] as List)
+              : 0,
       reads: json['reads'] as int? ?? 0,
       score: (json['score'] as num?)?.toInt() ?? 0,
       yours: json['yours'] as bool? ?? false,
@@ -86,6 +91,7 @@ class Post with _$Post {
       canRecover: json['can_recover'] as bool? ?? false,
       canWiki: json['can_wiki'] as bool? ?? false,
       bookmarked: json['bookmarked'] as bool? ?? false,
+      bookmarkId: json['bookmark_id'] as int?,
       read: json['read'] as bool? ?? false,
       flairName: json['flair_name'] as String?,
       flairUrl: json['flair_url'] as String?,

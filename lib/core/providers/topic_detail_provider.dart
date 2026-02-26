@@ -9,10 +9,7 @@ class TopicDetailParams {
   final String serverUrl;
   final int topicId;
 
-  const TopicDetailParams({
-    required this.serverUrl,
-    required this.topicId,
-  });
+  const TopicDetailParams({required this.serverUrl, required this.topicId});
 
   @override
   bool operator ==(Object other) =>
@@ -26,7 +23,10 @@ class TopicDetailParams {
 }
 
 final topicDetailProvider = StateNotifierProvider.family<
-    TopicDetailNotifier, TopicDetailState, TopicDetailParams>(
+  TopicDetailNotifier,
+  TopicDetailState,
+  TopicDetailParams
+>(
   (ref, params) => TopicDetailNotifier(
     ref.watch(discourseApiClientProvider),
     ref.watch(authServiceProvider),
@@ -79,7 +79,7 @@ class TopicDetailNotifier extends StateNotifier<TopicDetailState> {
   static const _chunkSize = 20;
 
   TopicDetailNotifier(this._apiClient, this._authService, this._params)
-      : super(const TopicDetailState()) {
+    : super(const TopicDetailState()) {
     _fetchTopic();
   }
 
@@ -87,10 +87,7 @@ class TopicDetailNotifier extends StateNotifier<TopicDetailState> {
     try {
       final apiKey = await _authService.loadApiKey(_params.serverUrl);
       if (apiKey == null) {
-        state = state.copyWith(
-          isLoading: false,
-          error: 'Not authenticated',
-        );
+        state = state.copyWith(isLoading: false, error: 'Not authenticated');
         return;
       }
 
@@ -128,10 +125,11 @@ class TopicDetailNotifier extends StateNotifier<TopicDetailState> {
         return;
       }
 
-      final unloaded = state.topic!.postStream
-          .where((id) => !state.loadedPostIds.contains(id))
-          .take(_chunkSize)
-          .toList();
+      final unloaded =
+          state.topic!.postStream
+              .where((id) => !state.loadedPostIds.contains(id))
+              .take(_chunkSize)
+              .toList();
 
       if (unloaded.isEmpty) {
         state = state.copyWith(isLoadingMore: false);
@@ -145,7 +143,8 @@ class TopicDetailNotifier extends StateNotifier<TopicDetailState> {
         unloaded,
       );
 
-      final newPosts = (json['post_stream']?['posts'] as List<dynamic>?)
+      final newPosts =
+          (json['post_stream']?['posts'] as List<dynamic>?)
               ?.map((p) => Post.fromApiJson(p as Map<String, dynamic>))
               .toList() ??
           [];
@@ -172,5 +171,174 @@ class TopicDetailNotifier extends StateNotifier<TopicDetailState> {
   Future<void> refresh() async {
     state = const TopicDetailState();
     await _fetchTopic();
+  }
+
+  Future<String?> _getApiKey() => _authService.loadApiKey(_params.serverUrl);
+
+  Post? _findPost(int postId) =>
+      state.topic?.posts.where((p) => p.id == postId).firstOrNull;
+
+  void _updatePost(int postId, Post Function(Post) transform) {
+    if (state.topic == null) return;
+    final updated =
+        state.topic!.posts.map((p) {
+          return p.id == postId ? transform(p) : p;
+        }).toList();
+    state = state.copyWith(topic: state.topic!.copyWith(posts: updated));
+  }
+
+  Future<void> toggleLike(int postId) async {
+    final post = _findPost(postId);
+    if (post == null) return;
+
+    final likeAction = post.actionsSummary.where((a) => a.id == 2).firstOrNull;
+    if (likeAction == null) return;
+
+    final wasLiked = likeAction.acted;
+
+    _updatePost(postId, (p) {
+      final newActions =
+          p.actionsSummary.map((a) {
+            if (a.id != 2) return a;
+            return a.copyWith(
+              acted: !wasLiked,
+              count: wasLiked ? a.count - 1 : a.count + 1,
+              canUndo: !wasLiked,
+            );
+          }).toList();
+      return p.copyWith(
+        actionsSummary: newActions,
+        likeCount: wasLiked ? p.likeCount - 1 : p.likeCount + 1,
+      );
+    });
+
+    try {
+      final apiKey = await _getApiKey();
+      if (apiKey == null) return;
+
+      if (wasLiked) {
+        await _apiClient.deletePostAction(
+          _params.serverUrl,
+          apiKey,
+          postId: postId,
+          postActionTypeId: 2,
+        );
+      } else {
+        await _apiClient.createPostAction(
+          _params.serverUrl,
+          apiKey,
+          postId: postId,
+          postActionTypeId: 2,
+        );
+      }
+    } catch (_) {
+      _updatePost(postId, (p) {
+        final reverted =
+            p.actionsSummary.map((a) {
+              if (a.id != 2) return a;
+              return a.copyWith(
+                acted: wasLiked,
+                count: wasLiked ? a.count + 1 : a.count - 1,
+                canUndo: wasLiked,
+              );
+            }).toList();
+        return p.copyWith(
+          actionsSummary: reverted,
+          likeCount: wasLiked ? p.likeCount + 1 : p.likeCount - 1,
+        );
+      });
+    }
+  }
+
+  Future<void> toggleBookmark(int postId) async {
+    final post = _findPost(postId);
+    if (post == null) return;
+
+    final wasBookmarked = post.bookmarked;
+
+    _updatePost(postId, (p) => p.copyWith(bookmarked: !wasBookmarked));
+
+    try {
+      final apiKey = await _getApiKey();
+      if (apiKey == null) return;
+
+      if (wasBookmarked) {
+        final bmId = post.bookmarkId;
+        if (bmId == null) return;
+        await _apiClient.deleteBookmark(_params.serverUrl, apiKey, bmId);
+        _updatePost(postId, (p) => p.copyWith(bookmarkId: null));
+      } else {
+        final result = await _apiClient.createBookmark(
+          _params.serverUrl,
+          apiKey,
+          bookmarkableId: postId,
+        );
+        final newId = result['id'] as int?;
+        _updatePost(postId, (p) => p.copyWith(bookmarkId: newId));
+      }
+    } catch (_) {
+      _updatePost(
+        postId,
+        (p) =>
+            p.copyWith(bookmarked: wasBookmarked, bookmarkId: post.bookmarkId),
+      );
+    }
+  }
+
+  Future<void> toggleTopicBookmark() async {
+    if (state.topic == null) return;
+
+    final wasBookmarked = state.topic!.bookmarked;
+    state = state.copyWith(
+      topic: state.topic!.copyWith(bookmarked: !wasBookmarked),
+    );
+
+    try {
+      final apiKey = await _getApiKey();
+      if (apiKey == null) return;
+
+      if (wasBookmarked) {
+        await _apiClient.unbookmarkTopic(
+          _params.serverUrl,
+          apiKey,
+          _params.topicId,
+        );
+      } else {
+        await _apiClient.bookmarkTopic(
+          _params.serverUrl,
+          apiKey,
+          _params.topicId,
+        );
+      }
+    } catch (_) {
+      state = state.copyWith(
+        topic: state.topic!.copyWith(bookmarked: wasBookmarked),
+      );
+    }
+  }
+
+  Future<void> setNotificationLevel(int level) async {
+    if (state.topic == null) return;
+
+    final previous = state.topic!.notificationLevel;
+    state = state.copyWith(
+      topic: state.topic!.copyWith(notificationLevel: level),
+    );
+
+    try {
+      final apiKey = await _getApiKey();
+      if (apiKey == null) return;
+
+      await _apiClient.setTopicNotificationLevel(
+        _params.serverUrl,
+        apiKey,
+        _params.topicId,
+        level,
+      );
+    } catch (_) {
+      state = state.copyWith(
+        topic: state.topic!.copyWith(notificationLevel: previous),
+      );
+    }
   }
 }
