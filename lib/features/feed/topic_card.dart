@@ -91,6 +91,22 @@ class TopicCard extends StatelessWidget {
           ),
           const SizedBox(width: 4),
         ],
+        if (topic.hasAcceptedAnswer) ...[
+          const Icon(
+            Icons.check_circle_rounded,
+            size: 14,
+            color: Colors.green,
+          ),
+          const SizedBox(width: 4),
+        ],
+        if (topic.eventStartsAt != null) ...[
+          Icon(
+            Icons.event_rounded,
+            size: 14,
+            color: theme.colorScheme.tertiary,
+          ),
+          const SizedBox(width: 4),
+        ],
         const Spacer(),
         Text(
           timeago.format(topic.bumpedAt),
@@ -190,6 +206,15 @@ class TopicCard extends StatelessWidget {
           _StatChip(
             icon: Icons.favorite_border_rounded,
             value: topic.likeCount,
+          ),
+        ],
+        if (topic.voteCount > 0) ...[
+          const SizedBox(width: 12),
+          _StatChip(
+            icon: topic.userVoted
+                ? Icons.arrow_upward_rounded
+                : Icons.arrow_upward_outlined,
+            value: topic.voteCount,
           ),
         ],
       ],

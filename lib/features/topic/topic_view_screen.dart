@@ -32,6 +32,15 @@ String notificationLevelLabel(int? level) {
   };
 }
 
+String _formatEventRange(DateTime start, DateTime? end) {
+  final startStr = '${start.month}/${start.day} ${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}';
+  if (end == null) return startStr;
+  if (start.year == end.year && start.month == end.month && start.day == end.day) {
+    return '$startStr – ${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}';
+  }
+  return '$startStr – ${end.month}/${end.day} ${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}';
+}
+
 class TopicViewScreen extends ConsumerStatefulWidget {
   final String serverUrl;
   final int topicId;
@@ -747,6 +756,13 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
               archived: topic.archived,
               bookmarked: topic.bookmarked,
               notificationLevel: topic.notificationLevel,
+              acceptedAnswerPostNumber: topic.acceptedAnswerPostNumber,
+              voteCount: topic.voteCount,
+              canVote: topic.canVote,
+              userVoted: topic.userVoted,
+              onVoteTap: topic.canVote ? () => _notifier.toggleVote() : null,
+              eventStartsAt: topic.eventStartsAt,
+              eventEndsAt: topic.eventEndsAt,
               showActions: widget.embedded,
               onBookmarkTap: () => _notifier.toggleTopicBookmark(),
               onShareTap: _shareTopic,
@@ -782,6 +798,9 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
                       onDeleteTap: () => _confirmDeletePost(post.id),
                       onRecoverTap: () => _notifier.recoverPost(post.id),
                       onFlagTap: () => _showFlagDialog(post.id),
+                      onAcceptAnswerTap: (post.canAcceptAnswer || post.canUnacceptAnswer)
+                          ? () => _notifier.toggleAcceptAnswer(post.id)
+                          : null,
                     ),
                     if (index < topic.posts.length - 1)
                       const Divider(height: 1, indent: 62),
@@ -927,6 +946,13 @@ class _TopicHeader extends StatelessWidget {
   final bool archived;
   final bool bookmarked;
   final int? notificationLevel;
+  final int? acceptedAnswerPostNumber;
+  final int voteCount;
+  final bool canVote;
+  final bool userVoted;
+  final VoidCallback? onVoteTap;
+  final DateTime? eventStartsAt;
+  final DateTime? eventEndsAt;
   final bool showActions;
   final VoidCallback? onBookmarkTap;
   final VoidCallback? onShareTap;
@@ -945,6 +971,13 @@ class _TopicHeader extends StatelessWidget {
     required this.archived,
     this.bookmarked = false,
     this.notificationLevel,
+    this.acceptedAnswerPostNumber,
+    this.voteCount = 0,
+    this.canVote = false,
+    this.userVoted = false,
+    this.onVoteTap,
+    this.eventStartsAt,
+    this.eventEndsAt,
     this.showActions = false,
     this.onBookmarkTap,
     this.onShareTap,
@@ -1071,6 +1104,97 @@ class _TopicHeader extends StatelessWidget {
                       ),
                     );
                   }).toList(),
+            ),
+          ],
+          if (acceptedAnswerPostNumber != null ||
+              voteCount > 0 ||
+              canVote ||
+              eventStartsAt != null) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                if (acceptedAnswerPostNumber != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.check_circle_rounded, size: 14, color: Colors.green),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Solved',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: Colors.green,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (voteCount > 0 || canVote)
+                  InkWell(
+                    onTap: onVoteTap,
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: userVoted
+                            ? theme.colorScheme.primary.withValues(alpha: 0.12)
+                            : theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(6),
+                        border: userVoted
+                            ? Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.4))
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            userVoted ? Icons.arrow_upward_rounded : Icons.arrow_upward_outlined,
+                            size: 14,
+                            color: userVoted ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$voteCount',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: userVoted ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (eventStartsAt != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.event_rounded, size: 14, color: theme.colorScheme.tertiary),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatEventRange(eventStartsAt!, eventEndsAt),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.tertiary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
           ],
           if (showActions) ...[

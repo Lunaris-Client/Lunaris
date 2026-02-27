@@ -42,6 +42,9 @@ class Post with _$Post {
     String? flairBgColor,
     String? flairColor,
     @Default([]) List<PostActionSummary> actionsSummary,
+    @Default(false) bool acceptedAnswer,
+    @Default(false) bool canAcceptAnswer,
+    @Default(false) bool canUnacceptAnswer,
   }) = _Post;
 
   factory Post.fromJson(Map<String, dynamic> json) => _$PostFromJson(json);
@@ -98,6 +101,9 @@ class Post with _$Post {
       flairBgColor: json['flair_bg_color'] as String?,
       flairColor: json['flair_color'] as String?,
       actionsSummary: actions,
+      acceptedAnswer: json['accepted_answer'] as bool? ?? false,
+      canAcceptAnswer: json['can_accept_answer'] as bool? ?? false,
+      canUnacceptAnswer: json['can_unaccept_answer'] as bool? ?? false,
     );
   }
 }

@@ -682,4 +682,82 @@ class TopicDetailNotifier extends StateNotifier<TopicDetailState> {
       return false;
     }
   }
+
+  Future<bool> toggleAcceptAnswer(int postId) async {
+    final post = _findPost(postId);
+    if (post == null) return false;
+
+    final wasAccepted = post.acceptedAnswer;
+
+    _updatePost(postId, (p) => p.copyWith(acceptedAnswer: !wasAccepted));
+    if (state.topic != null) {
+      state = state.copyWith(
+        topic: state.topic!.copyWith(
+          acceptedAnswerPostNumber: wasAccepted ? null : post.postNumber,
+          acceptedAnswerUsername: wasAccepted ? null : post.username,
+        ),
+      );
+    }
+
+    try {
+      final apiKey = await _getApiKey();
+      if (apiKey == null) return false;
+
+      if (wasAccepted) {
+        await _apiClient.unacceptAnswer(_params.serverUrl, apiKey, postId);
+      } else {
+        await _apiClient.acceptAnswer(_params.serverUrl, apiKey, postId);
+      }
+      return true;
+    } catch (_) {
+      _updatePost(postId, (p) => p.copyWith(acceptedAnswer: wasAccepted));
+      if (state.topic != null) {
+        state = state.copyWith(
+          topic: state.topic!.copyWith(
+            acceptedAnswerPostNumber:
+                wasAccepted ? post.postNumber : null,
+            acceptedAnswerUsername:
+                wasAccepted ? post.username : null,
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<bool> toggleVote() async {
+    if (state.topic == null) return false;
+
+    final wasVoted = state.topic!.userVoted;
+    final prevCount = state.topic!.voteCount;
+
+    state = state.copyWith(
+      topic: state.topic!.copyWith(
+        userVoted: !wasVoted,
+        voteCount: wasVoted ? prevCount - 1 : prevCount + 1,
+      ),
+    );
+
+    try {
+      final apiKey = await _getApiKey();
+      if (apiKey == null) return false;
+
+      if (wasVoted) {
+        await _apiClient.unvoteTopic(
+          _params.serverUrl, apiKey, _params.topicId);
+      } else {
+        await _apiClient.voteOnTopic(
+          _params.serverUrl, apiKey, _params.topicId);
+      }
+      return true;
+    } catch (_) {
+      state = state.copyWith(
+        topic: state.topic!.copyWith(
+          userVoted: wasVoted,
+          voteCount: prevCount,
+        ),
+      );
+      return false;
+    }
+  }
 }

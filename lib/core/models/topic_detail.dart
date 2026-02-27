@@ -31,6 +31,13 @@ class TopicDetail with _$TopicDetail {
     @Default([]) List<Post> posts,
     String? categorySlug,
     int? currentPostNumber,
+    int? acceptedAnswerPostNumber,
+    String? acceptedAnswerUsername,
+    @Default(0) int voteCount,
+    @Default(false) bool canVote,
+    @Default(false) bool userVoted,
+    DateTime? eventStartsAt,
+    DateTime? eventEndsAt,
   }) = _TopicDetail;
 
   factory TopicDetail.fromJson(Map<String, dynamic> json) =>
@@ -52,6 +59,8 @@ class TopicDetail with _$TopicDetail {
             ?.map((t) => t.toString())
             .toList() ??
         [];
+
+    final acceptedAnswer = json['accepted_answer'] as Map<String, dynamic>?;
 
     return TopicDetail(
       id: json['id'] as int,
@@ -80,6 +89,17 @@ class TopicDetail with _$TopicDetail {
       posts: loadedPosts,
       categorySlug: json['category_slug'] as String?,
       currentPostNumber: json['current_post_number'] as int?,
+      acceptedAnswerPostNumber: acceptedAnswer?['post_number'] as int?,
+      acceptedAnswerUsername: acceptedAnswer?['username'] as String?,
+      voteCount: json['vote_count'] as int? ?? 0,
+      canVote: json['can_vote'] as bool? ?? false,
+      userVoted: json['user_voted'] as bool? ?? false,
+      eventStartsAt: json['event_starts_at'] != null
+          ? DateTime.tryParse(json['event_starts_at'] as String)
+          : null,
+      eventEndsAt: json['event_ends_at'] != null
+          ? DateTime.tryParse(json['event_ends_at'] as String)
+          : null,
     );
   }
 }

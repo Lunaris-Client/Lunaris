@@ -20,6 +20,7 @@ class PostItem extends StatefulWidget {
   final VoidCallback? onDeleteTap;
   final VoidCallback? onRecoverTap;
   final VoidCallback? onFlagTap;
+  final VoidCallback? onAcceptAnswerTap;
 
   const PostItem({
     super.key,
@@ -36,6 +37,7 @@ class PostItem extends StatefulWidget {
     this.onDeleteTap,
     this.onRecoverTap,
     this.onFlagTap,
+    this.onAcceptAnswerTap,
   });
 
   @override
@@ -57,6 +59,8 @@ class _PostItemState extends State<PostItem> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildAuthorRow(theme),
+          if (post.acceptedAnswer)
+            _buildAcceptedBadge(theme),
           if (widget.showReplyIndicator && post.replyToPostNumber != null)
             _buildReplyIndicator(theme),
           const SizedBox(height: 8),
@@ -204,6 +208,33 @@ class _PostItemState extends State<PostItem> {
     );
   }
 
+  Widget _buildAcceptedBadge(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 46, top: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.green.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check_circle_rounded, size: 16, color: Colors.green),
+            const SizedBox(width: 4),
+            Text(
+              'Accepted Answer',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: Colors.green,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildReplyIndicator(ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.only(left: 46, top: 4),
@@ -293,6 +324,7 @@ class _PostItemState extends State<PostItem> {
               onDeleteTap: widget.onDeleteTap,
               onRecoverTap: widget.onRecoverTap,
               onFlagTap: widget.onFlagTap,
+              onAcceptAnswerTap: widget.onAcceptAnswerTap,
             ),
         ],
       ),
@@ -358,6 +390,7 @@ class _PostOverflowMenu extends StatelessWidget {
   final VoidCallback? onDeleteTap;
   final VoidCallback? onRecoverTap;
   final VoidCallback? onFlagTap;
+  final VoidCallback? onAcceptAnswerTap;
 
   const _PostOverflowMenu({
     required this.post,
@@ -365,6 +398,7 @@ class _PostOverflowMenu extends StatelessWidget {
     this.onDeleteTap,
     this.onRecoverTap,
     this.onFlagTap,
+    this.onAcceptAnswerTap,
   });
 
   @override
@@ -386,6 +420,8 @@ class _PostOverflowMenu extends StatelessWidget {
             onRecoverTap?.call();
           case 'flag':
             onFlagTap?.call();
+          case 'accept_answer':
+            onAcceptAnswerTap?.call();
         }
       },
       itemBuilder: (ctx) => [
@@ -413,6 +449,20 @@ class _PostOverflowMenu extends StatelessWidget {
             child: ListTile(
               leading: Icon(Icons.flag_outlined),
               title: Text('Flag'),
+              dense: true,
+            ),
+          ),
+        if (post.canAcceptAnswer || post.canUnacceptAnswer)
+          PopupMenuItem(
+            value: 'accept_answer',
+            child: ListTile(
+              leading: Icon(
+                post.acceptedAnswer
+                    ? Icons.check_circle_rounded
+                    : Icons.check_circle_outline_rounded,
+                color: post.acceptedAnswer ? Colors.green : null,
+              ),
+              title: Text(post.acceptedAnswer ? 'Unaccept Answer' : 'Accept Answer'),
               dense: true,
             ),
           ),

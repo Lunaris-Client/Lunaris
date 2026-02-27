@@ -37,6 +37,12 @@ class Topic with _$Topic {
     @Default([]) List<TopicPoster> posters,
     @Default([]) List<TopicThumbnail> thumbnails,
     String? lastPosterUsername,
+    @Default(false) bool hasAcceptedAnswer,
+    @Default(0) int voteCount,
+    @Default(false) bool canVote,
+    @Default(false) bool userVoted,
+    DateTime? eventStartsAt,
+    DateTime? eventEndsAt,
   }) = _Topic;
 
   factory Topic.fromJson(Map<String, dynamic> json) => _$TopicFromJson(json);
@@ -104,6 +110,16 @@ class Topic with _$Topic {
       posters: posters,
       thumbnails: thumbnails,
       lastPosterUsername: json['last_poster_username'] as String?,
+      hasAcceptedAnswer: json['has_accepted_answer'] as bool? ?? false,
+      voteCount: json['vote_count'] as int? ?? 0,
+      canVote: json['can_vote'] as bool? ?? false,
+      userVoted: json['user_voted'] as bool? ?? false,
+      eventStartsAt: json['event_starts_at'] != null
+          ? DateTime.tryParse(json['event_starts_at'] as String)
+          : null,
+      eventEndsAt: json['event_ends_at'] != null
+          ? DateTime.tryParse(json['event_ends_at'] as String)
+          : null,
     );
   }
 }

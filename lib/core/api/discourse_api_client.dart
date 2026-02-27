@@ -954,4 +954,56 @@ class DiscourseApiClient {
       options: _authHeaders(apiKey),
     );
   }
+
+  Future<Map<String, dynamic>> acceptAnswer(
+    String serverUrl,
+    String apiKey,
+    int postId,
+  ) async {
+    final response = await _dio.post(
+      '$serverUrl/solution/accept',
+      data: {'id': postId},
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> unacceptAnswer(
+    String serverUrl,
+    String apiKey,
+    int postId,
+  ) async {
+    final response = await _dio.post(
+      '$serverUrl/solution/unaccept',
+      data: {'id': postId},
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> voteOnTopic(
+    String serverUrl,
+    String apiKey,
+    int topicId,
+  ) async {
+    final response = await _dio.post(
+      '$serverUrl/voting/vote',
+      data: {'topic_id': topicId},
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> unvoteTopic(
+    String serverUrl,
+    String apiKey,
+    int topicId,
+  ) async {
+    final response = await _dio.post(
+      '$serverUrl/voting/unvote',
+      data: {'topic_id': topicId},
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
 }
