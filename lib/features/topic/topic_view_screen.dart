@@ -5,6 +5,7 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:lunaris/core/models/site_category.dart';
 import 'package:lunaris/core/providers/message_bus_provider.dart';
+import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/core/providers/topic_detail_provider.dart';
 import 'package:lunaris/core/utils/color_utils.dart';
 import 'package:lunaris/features/bookmarks/bookmark_reminder_picker.dart';
@@ -264,6 +265,100 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
     );
   }
 
+  void _confirmDeletePost(int postId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete post'),
+        content: const Text('Are you sure you want to delete this post?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _notifier.deletePost(postId);
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFlagDialog(int postId) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return SimpleDialog(
+          title: const Text('Flag post'),
+          children: [
+            _FlagOption(
+              icon: Icons.chat_bubble_outline,
+              label: 'Off-topic',
+              description: 'Not relevant to the current discussion',
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _flagPost(postId, 3);
+              },
+            ),
+            _FlagOption(
+              icon: Icons.warning_amber_rounded,
+              label: 'Inappropriate',
+              description: 'Not appropriate for this community',
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _flagPost(postId, 4);
+              },
+            ),
+            _FlagOption(
+              icon: Icons.report_outlined,
+              label: 'Spam',
+              description: 'This is an advertisement or vandalism',
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _flagPost(postId, 8);
+              },
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+              child: TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _flagPost(int postId, int flagTypeId) async {
+    try {
+      final apiKey = await ref.read(authServiceProvider).loadApiKey(widget.serverUrl);
+      if (apiKey == null) return;
+      final apiClient = ref.read(discourseApiClientProvider);
+      await apiClient.flagPost(widget.serverUrl, apiKey, postId, flagTypeId: flagTypeId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Post flagged'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to flag post: $e'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
+  }
+
   static void _showShareSheet(BuildContext context, String url) {
     showModalBottomSheet(
       context: context,
@@ -462,15 +557,21 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
     );
   }
 
+  bool get _isStaff {
+    final server = ref.read(activeServerProvider);
+    return server?.isAdmin == true || server?.isModerator == true;
+  }
+
   List<Widget> _buildAppBarActions(TopicDetailState state, ThemeData theme) {
     if (state.topic == null) return [];
+    final topic = state.topic!;
     return [
       IconButton(
         icon: Icon(
-          state.topic!.bookmarked
+          topic.bookmarked
               ? Icons.bookmark_rounded
               : Icons.bookmark_border_rounded,
-          color: state.topic!.bookmarked ? theme.colorScheme.primary : null,
+          color: topic.bookmarked ? theme.colorScheme.primary : null,
         ),
         onPressed: () => _notifier.toggleTopicBookmark(),
       ),
@@ -483,14 +584,22 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
         onSelected: (value) {
           switch (value) {
             case 'jump':
-              _showJumpToPostDialog(context, state.topic!.highestPostNumber);
+              _showJumpToPostDialog(context, topic.highestPostNumber);
             case 'unread':
               _jumpToFirstUnread();
             case 'notification':
               _showNotificationLevelPicker(
                 context,
-                state.topic!.notificationLevel,
+                topic.notificationLevel,
               );
+            case 'toggle_closed':
+              _notifier.setTopicStatus('closed', !topic.closed);
+            case 'toggle_archived':
+              _notifier.setTopicStatus('archived', !topic.archived);
+            case 'toggle_visible':
+              _notifier.setTopicStatus('visible', !topic.visible);
+            case 'toggle_pinned':
+              _notifier.setTopicStatus('pinned', !topic.pinned);
           }
         },
         itemBuilder:
@@ -516,14 +625,57 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
                 value: 'notification',
                 child: ListTile(
                   leading: Icon(
-                    notificationLevelIcon(state.topic!.notificationLevel),
+                    notificationLevelIcon(topic.notificationLevel),
                   ),
                   title: Text(
-                    notificationLevelLabel(state.topic!.notificationLevel),
+                    notificationLevelLabel(topic.notificationLevel),
                   ),
                   dense: true,
                 ),
               ),
+              if (_isStaff) ...[
+                const PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'toggle_closed',
+                  child: ListTile(
+                    leading: Icon(topic.closed
+                        ? Icons.lock_open_rounded
+                        : Icons.lock_rounded),
+                    title: Text(topic.closed ? 'Reopen' : 'Close'),
+                    dense: true,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'toggle_archived',
+                  child: ListTile(
+                    leading: Icon(topic.archived
+                        ? Icons.unarchive_rounded
+                        : Icons.archive_rounded),
+                    title: Text(topic.archived ? 'Unarchive' : 'Archive'),
+                    dense: true,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'toggle_visible',
+                  child: ListTile(
+                    leading: Icon(topic.visible
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded),
+                    title: Text(topic.visible ? 'Unlist' : 'List'),
+                    dense: true,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'toggle_pinned',
+                  child: ListTile(
+                    leading: Icon(topic.pinned
+                        ? Icons.push_pin_outlined
+                        : Icons.push_pin_rounded),
+                    title: Text(topic.pinned ? 'Unpin' : 'Pin'),
+                    dense: true,
+                  ),
+                ),
+              ],
             ],
       ),
     ];
@@ -616,6 +768,7 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
                     PostItem(
                       post: post,
                       serverUrl: widget.serverUrl,
+                      isStaff: _isStaff,
                       onLikeTap: () => _notifier.toggleLike(post.id),
                       onBookmarkTap: () => _notifier.toggleBookmark(post.id),
                       onBookmarkLongPress: () => _bookmarkWithReminder(post.id),
@@ -626,6 +779,9 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
                             replyToPostNumber: post.postNumber,
                             username: post.username,
                           ),
+                      onDeleteTap: () => _confirmDeletePost(post.id),
+                      onRecoverTap: () => _notifier.recoverPost(post.id),
+                      onFlagTap: () => _showFlagDialog(post.id),
                     ),
                     if (index < topic.posts.length - 1)
                       const Divider(height: 1, indent: 62),
@@ -1022,6 +1178,30 @@ class _TopicActionChip extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _FlagOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String description;
+  final VoidCallback onTap;
+
+  const _FlagOption({
+    required this.icon,
+    required this.label,
+    required this.description,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(label),
+      subtitle: Text(description),
+      onTap: onTap,
     );
   }
 }

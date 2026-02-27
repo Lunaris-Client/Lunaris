@@ -806,4 +806,152 @@ class DiscourseApiClient {
     );
     return response.data as Map<String, dynamic>;
   }
+
+  Future<void> setTopicStatus(
+    String serverUrl,
+    String apiKey,
+    int topicId, {
+    required String status,
+    required bool enabled,
+    String? until,
+  }) async {
+    await _dio.put(
+      '$serverUrl/t/$topicId/status',
+      data: {
+        'status': status,
+        'enabled': enabled.toString(),
+        if (until != null) 'until': until,
+      },
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> deletePost(
+    String serverUrl,
+    String apiKey,
+    int postId, {
+    bool forceDestroy = false,
+  }) async {
+    await _dio.delete(
+      '$serverUrl/posts/$postId',
+      queryParameters: {if (forceDestroy) 'force_destroy': true},
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> recoverPost(
+    String serverUrl,
+    String apiKey,
+    int postId,
+  ) async {
+    await _dio.put(
+      '$serverUrl/posts/$postId/recover',
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<Map<String, dynamic>> editPost(
+    String serverUrl,
+    String apiKey,
+    int postId, {
+    required String raw,
+    String? editReason,
+  }) async {
+    final response = await _dio.put(
+      '$serverUrl/posts/$postId',
+      data: {
+        'post': {
+          'raw': raw,
+          if (editReason != null) 'edit_reason': editReason,
+        },
+      },
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fetchReviewQueue(
+    String serverUrl,
+    String apiKey, {
+    String status = 'pending',
+    int offset = 0,
+  }) async {
+    final response = await _dio.get(
+      '$serverUrl/review.json',
+      queryParameters: {'status': status, 'offset': offset},
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> performReviewAction(
+    String serverUrl,
+    String apiKey,
+    int reviewableId, {
+    required String actionId,
+    required int version,
+  }) async {
+    final response = await _dio.put(
+      '$serverUrl/review/$reviewableId/perform/$actionId',
+      data: {'version': version},
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<void> suspendUser(
+    String serverUrl,
+    String apiKey,
+    int userId, {
+    required String reason,
+    required String suspendUntil,
+    String? message,
+  }) async {
+    await _dio.put(
+      '$serverUrl/admin/users/$userId/suspend',
+      data: {
+        'reason': reason,
+        'suspend_until': suspendUntil,
+        if (message != null) 'message': message,
+      },
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> silenceUser(
+    String serverUrl,
+    String apiKey,
+    int userId, {
+    required String reason,
+    required String silencedTill,
+    String? message,
+  }) async {
+    await _dio.put(
+      '$serverUrl/admin/users/$userId/silence',
+      data: {
+        'reason': reason,
+        'silenced_till': silencedTill,
+        if (message != null) 'message': message,
+      },
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> flagPost(
+    String serverUrl,
+    String apiKey,
+    int postId, {
+    required int flagTypeId,
+    String? message,
+  }) async {
+    await _dio.post(
+      '$serverUrl/post_actions',
+      data: {
+        'id': postId,
+        'post_action_type_id': flagTypeId,
+        if (message != null) 'message': message,
+      },
+      options: _authHeaders(apiKey),
+    );
+  }
 }

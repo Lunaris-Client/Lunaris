@@ -17,6 +17,8 @@ class ServerAccount with _$ServerAccount {
     int? userId,
     String? avatarTemplate,
     int? trustLevel,
+    @Default(false) bool isAdmin,
+    @Default(false) bool isModerator,
     DateTime? lastSyncedAt,
     int? notificationChannelPosition,
     @Default(false) bool isAuthenticated,

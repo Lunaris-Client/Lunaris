@@ -10,6 +10,7 @@ class SidebarNavigation extends StatelessWidget {
   final ServerAccount? activeServer;
   final int notificationBadgeCount;
   final VoidCallback? onAvatarTap;
+  final bool showReviewQueue;
 
   const SidebarNavigation({
     super.key,
@@ -19,6 +20,7 @@ class SidebarNavigation extends StatelessWidget {
     this.activeServer,
     this.notificationBadgeCount = 0,
     this.onAvatarTap,
+    this.showReviewQueue = false,
   });
 
   static const _destinations = [
@@ -34,13 +36,21 @@ class SidebarNavigation extends StatelessWidget {
     (Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded, 'Chat'),
   ];
 
-  @override
-  Widget build(BuildContext context) {
-    if (!extended) return _buildRail(context);
-    return _buildExpanded(context);
+  static const _reviewDest = (Icons.shield_outlined, Icons.shield_rounded, 'Review');
+
+  List<(IconData, IconData, String)> get _allDestinations {
+    if (showReviewQueue) return [..._destinations, _reviewDest];
+    return _destinations;
   }
 
-  Widget _buildRail(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
+    final destinations = _allDestinations;
+    if (!extended) return _buildRail(context, destinations);
+    return _buildExpanded(context, destinations);
+  }
+
+  Widget _buildRail(BuildContext context, List<(IconData, IconData, String)> destinations) {
     return NavigationRail(
       selectedIndex: selectedIndex,
       onDestinationSelected: onDestinationSelected,
@@ -51,11 +61,11 @@ class SidebarNavigation extends StatelessWidget {
         tooltip: 'Servers',
       ),
       destinations: [
-        for (var i = 0; i < _destinations.length; i++)
+        for (var i = 0; i < destinations.length; i++)
           NavigationRailDestination(
-            icon: _badgedIcon(_destinations[i].$1, i == 2),
-            selectedIcon: _badgedIcon(_destinations[i].$2, i == 2),
-            label: Text(_destinations[i].$3),
+            icon: _badgedIcon(destinations[i].$1, i == 2),
+            selectedIcon: _badgedIcon(destinations[i].$2, i == 2),
+            label: Text(destinations[i].$3),
           ),
       ],
     );
@@ -67,7 +77,7 @@ class SidebarNavigation extends StatelessWidget {
     return Badge.count(count: notificationBadgeCount, child: icon);
   }
 
-  Widget _buildExpanded(BuildContext context) {
+  Widget _buildExpanded(BuildContext context, List<(IconData, IconData, String)> destinations) {
     return SizedBox(
       width: 240,
       child: Column(
@@ -82,11 +92,11 @@ class SidebarNavigation extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
-                for (var i = 0; i < _destinations.length; i++)
+                for (var i = 0; i < destinations.length; i++)
                   _NavItem(
-                    icon: _destinations[i].$1,
-                    selectedIcon: _destinations[i].$2,
-                    label: _destinations[i].$3,
+                    icon: destinations[i].$1,
+                    selectedIcon: destinations[i].$2,
+                    label: destinations[i].$3,
                     selected: selectedIndex == i,
                     onTap: () => onDestinationSelected(i),
                     badgeCount: i == 2 ? notificationBadgeCount : 0,

@@ -34,6 +34,7 @@ import 'package:lunaris/core/services/haptic_service.dart';
 import 'package:lunaris/features/chat/chat_channel_list_view.dart';
 import 'package:lunaris/features/chat/chat_channel_screen.dart';
 import 'package:lunaris/features/chat/new_chat_screen.dart';
+import 'package:lunaris/features/admin/review_queue_view.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
@@ -397,6 +398,12 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                     selectedIcon: Icon(Icons.chat_bubble_rounded),
                     label: 'Chat',
                   ),
+                  if (server.isAdmin || server.isModerator)
+                    const NavigationDestination(
+                      icon: Icon(Icons.shield_outlined),
+                      selectedIcon: Icon(Icons.shield_rounded),
+                      label: 'Review',
+                    ),
                 ],
               )
               : null,
@@ -423,6 +430,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         content = _buildMessagesTab(server);
       case 5:
         content = _buildChatTab(server);
+      case 6:
+        content = ReviewQueueView(serverUrl: server.serverUrl);
       default:
         content = _buildFeedTab(siteData, server.serverUrl);
     }
@@ -442,6 +451,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           extended: breakpoint == LayoutBreakpoint.desktop,
           activeServer: breakpoint == LayoutBreakpoint.desktop ? server : null,
           notificationBadgeCount: unreadCount,
+          showReviewQueue: server.isAdmin || server.isModerator,
           onAvatarTap: server.username != null && server.username!.isNotEmpty
               ? () => _openUserProfile(server, server.username!)
               : null,

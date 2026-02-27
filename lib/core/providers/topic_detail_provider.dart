@@ -614,4 +614,72 @@ class TopicDetailNotifier extends StateNotifier<TopicDetailState> {
       );
     } catch (_) {}
   }
+
+  Future<bool> setTopicStatus(String status, bool enabled) async {
+    try {
+      final apiKey = await _getApiKey();
+      if (apiKey == null) return false;
+
+      await _apiClient.setTopicStatus(
+        _params.serverUrl,
+        apiKey,
+        _params.topicId,
+        status: status,
+        enabled: enabled,
+      );
+
+      if (!mounted) return true;
+
+      final topic = state.topic;
+      if (topic == null) return true;
+
+      switch (status) {
+        case 'closed':
+          state =
+              state.copyWith(topic: topic.copyWith(closed: enabled));
+        case 'archived':
+          state =
+              state.copyWith(topic: topic.copyWith(archived: enabled));
+        case 'visible':
+          state =
+              state.copyWith(topic: topic.copyWith(visible: enabled));
+        case 'pinned':
+          state =
+              state.copyWith(topic: topic.copyWith(pinned: enabled));
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> deletePost(int postId) async {
+    try {
+      final apiKey = await _getApiKey();
+      if (apiKey == null) return false;
+
+      await _apiClient.deletePost(_params.serverUrl, apiKey, postId);
+
+      if (!mounted) return true;
+      _updatePost(postId, (p) => p.copyWith(hidden: true));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> recoverPost(int postId) async {
+    try {
+      final apiKey = await _getApiKey();
+      if (apiKey == null) return false;
+
+      await _apiClient.recoverPost(_params.serverUrl, apiKey, postId);
+
+      if (!mounted) return true;
+      _fetchAndUpdatePost(postId);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }

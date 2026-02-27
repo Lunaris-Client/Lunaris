@@ -16,6 +16,10 @@ class PostItem extends StatefulWidget {
   final VoidCallback? onReplyTap;
   final ValueChanged<int>? onReplyToTap;
   final bool showReplyIndicator;
+  final bool isStaff;
+  final VoidCallback? onDeleteTap;
+  final VoidCallback? onRecoverTap;
+  final VoidCallback? onFlagTap;
 
   const PostItem({
     super.key,
@@ -28,6 +32,10 @@ class PostItem extends StatefulWidget {
     this.onReplyTap,
     this.onReplyToTap,
     this.showReplyIndicator = true,
+    this.isStaff = false,
+    this.onDeleteTap,
+    this.onRecoverTap,
+    this.onFlagTap,
   });
 
   @override
@@ -278,6 +286,14 @@ class _PostItemState extends State<PostItem> {
                 color: theme.colorScheme.tertiary,
               ),
             ),
+          if (!post.hidden || widget.isStaff)
+            _PostOverflowMenu(
+              post: post,
+              isStaff: widget.isStaff,
+              onDeleteTap: widget.onDeleteTap,
+              onRecoverTap: widget.onRecoverTap,
+              onFlagTap: widget.onFlagTap,
+            ),
         ],
       ),
     );
@@ -332,6 +348,75 @@ class _ActionButton extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PostOverflowMenu extends StatelessWidget {
+  final Post post;
+  final bool isStaff;
+  final VoidCallback? onDeleteTap;
+  final VoidCallback? onRecoverTap;
+  final VoidCallback? onFlagTap;
+
+  const _PostOverflowMenu({
+    required this.post,
+    required this.isStaff,
+    this.onDeleteTap,
+    this.onRecoverTap,
+    this.onFlagTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return PopupMenuButton<String>(
+      icon: Icon(
+        Icons.more_horiz_rounded,
+        size: 18,
+        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+      ),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+      onSelected: (value) {
+        switch (value) {
+          case 'delete':
+            onDeleteTap?.call();
+          case 'recover':
+            onRecoverTap?.call();
+          case 'flag':
+            onFlagTap?.call();
+        }
+      },
+      itemBuilder: (ctx) => [
+        if (post.hidden && isStaff)
+          const PopupMenuItem(
+            value: 'recover',
+            child: ListTile(
+              leading: Icon(Icons.restore_rounded),
+              title: Text('Recover'),
+              dense: true,
+            ),
+          ),
+        if (post.canDelete && !post.hidden)
+          const PopupMenuItem(
+            value: 'delete',
+            child: ListTile(
+              leading: Icon(Icons.delete_outline_rounded),
+              title: Text('Delete'),
+              dense: true,
+            ),
+          ),
+        if (!post.hidden)
+          const PopupMenuItem(
+            value: 'flag',
+            child: ListTile(
+              leading: Icon(Icons.flag_outlined),
+              title: Text('Flag'),
+              dense: true,
+            ),
+          ),
+      ],
     );
   }
 }

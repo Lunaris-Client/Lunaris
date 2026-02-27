@@ -90,6 +90,8 @@ Future<bool> _handleAuthDeepLink(SharedPreferences prefs) async {
     int? userId;
     String? avatarTemplate;
     int? trustLevel;
+    bool isAdmin = false;
+    bool isModerator = false;
 
     try {
       final apiClient = DiscourseApiClient();
@@ -101,6 +103,8 @@ Future<bool> _handleAuthDeepLink(SharedPreferences prefs) async {
       userId = user.id;
       avatarTemplate = user.avatarTemplate;
       trustLevel = user.trustLevel;
+      isAdmin = user.isAdmin;
+      isModerator = user.isModerator;
     } catch (_) {}
 
     final raw = prefs.getString('server_accounts');
@@ -126,6 +130,8 @@ Future<bool> _handleAuthDeepLink(SharedPreferences prefs) async {
       if (userId != null) 'userId': userId,
       if (avatarTemplate != null) 'avatarTemplate': avatarTemplate,
       if (trustLevel != null) 'trustLevel': trustLevel,
+      'isAdmin': isAdmin,
+      'isModerator': isModerator,
       'isAuthenticated': true,
       'lastSyncedAt': DateTime.now().toIso8601String(),
     };
@@ -207,6 +213,8 @@ class _LunarisAppState extends ConsumerState<LunarisApp> {
         userId: user?.id,
         avatarTemplate: user?.avatarTemplate,
         trustLevel: user?.trustLevel,
+        isAdmin: user?.isAdmin ?? false,
+        isModerator: user?.isModerator ?? false,
         isAuthenticated: true,
         lastSyncedAt: DateTime.now(),
       );
