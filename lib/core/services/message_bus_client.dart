@@ -62,6 +62,11 @@ class MessageBusClient {
     _subscriptions[channel] = cb;
   }
 
+  void unsubscribe(String channel) {
+    _channelPositions.remove(channel);
+    _subscriptions.remove(channel);
+  }
+
   void start() {
     if (_polling || _disposed) return;
     _polling = true;

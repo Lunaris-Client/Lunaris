@@ -43,6 +43,7 @@ class TopicDetailState {
   final Object? error;
   final Set<int> loadedPostIds;
   final int currentPostIndex;
+  final List<int> newPostIds;
 
   const TopicDetailState({
     this.topic,
@@ -51,6 +52,7 @@ class TopicDetailState {
     this.error,
     this.loadedPostIds = const {},
     this.currentPostIndex = 0,
+    this.newPostIds = const [],
   });
 
   TopicDetailState copyWith({
@@ -61,6 +63,7 @@ class TopicDetailState {
     bool clearError = false,
     Set<int>? loadedPostIds,
     int? currentPostIndex,
+    List<int>? newPostIds,
   }) {
     return TopicDetailState(
       topic: topic ?? this.topic,
@@ -69,6 +72,7 @@ class TopicDetailState {
       error: clearError ? null : (error ?? this.error),
       loadedPostIds: loadedPostIds ?? this.loadedPostIds,
       currentPostIndex: currentPostIndex ?? this.currentPostIndex,
+      newPostIds: newPostIds ?? this.newPostIds,
     );
   }
 
@@ -457,5 +461,157 @@ class TopicDetailNotifier extends StateNotifier<TopicDetailState> {
     final lastRead = state.topic!.lastReadPostNumber ?? 0;
     if (lastRead >= state.topic!.highestPostNumber) return null;
     return lastRead + 1;
+  }
+
+  void handleTopicMessage(Map<String, dynamic> data) {
+    if (!mounted || state.topic == null) return;
+
+    if (data['reload_topic'] == true) {
+      _reloadTopicMetadata();
+      return;
+    }
+
+    final type = data['type']?.toString();
+    if (type == null) return;
+
+    switch (type) {
+      case 'created':
+        final postId = data['id'] as int?;
+        if (postId != null && !state.loadedPostIds.contains(postId)) {
+          state = state.copyWith(
+            newPostIds: [...state.newPostIds, postId],
+            topic: state.topic!.copyWith(
+              postStream: [...state.topic!.postStream, postId],
+            ),
+          );
+        }
+      case 'revised' || 'rebaked':
+        final postId = data['id'] as int?;
+        if (postId != null && state.loadedPostIds.contains(postId)) {
+          _fetchAndUpdatePost(postId);
+        }
+      case 'liked' || 'unliked':
+        final postId = data['id'] as int?;
+        final likesCount = data['likes_count'] as int?;
+        if (postId != null && likesCount != null) {
+          _updatePost(postId, (p) => p.copyWith(likeCount: likesCount));
+        }
+      case 'deleted' || 'destroyed':
+        final postId = data['id'] as int?;
+        if (postId != null) {
+          _updatePost(postId, (p) => p.copyWith(hidden: true));
+        }
+      case 'recovered':
+        final postId = data['id'] as int?;
+        if (postId != null) {
+          _fetchAndUpdatePost(postId);
+        }
+      case 'stats':
+        final postsCount = data['posts_count'] as int?;
+        if (postsCount != null) {
+          state = state.copyWith(
+            topic: state.topic!.copyWith(postsCount: postsCount),
+          );
+        }
+    }
+  }
+
+  Future<void> loadNewPosts() async {
+    if (state.newPostIds.isEmpty || state.topic == null) return;
+
+    final idsToLoad = List<int>.from(state.newPostIds);
+    state = state.copyWith(newPostIds: []);
+
+    try {
+      final apiKey = await _getApiKey();
+      if (apiKey == null) return;
+
+      final json = await _apiClient.fetchTopicPosts(
+        _params.serverUrl,
+        apiKey,
+        _params.topicId,
+        idsToLoad,
+      );
+
+      final posts =
+          (json['post_stream']?['posts'] as List<dynamic>?)
+              ?.map((p) => Post.fromApiJson(p as Map<String, dynamic>))
+              .toList() ??
+          [];
+
+      if (!mounted || posts.isEmpty) return;
+
+      final updatedLoaded = {...state.loadedPostIds};
+      for (final p in posts) {
+        updatedLoaded.add(p.id);
+      }
+
+      final allPosts = [...state.topic!.posts, ...posts];
+      allPosts.sort((a, b) => a.postNumber.compareTo(b.postNumber));
+
+      state = state.copyWith(
+        topic: state.topic!.copyWith(
+          posts: allPosts,
+          highestPostNumber: allPosts.last.postNumber,
+        ),
+        loadedPostIds: updatedLoaded,
+      );
+    } catch (_) {
+      state = state.copyWith(
+        newPostIds: [...state.newPostIds, ...idsToLoad],
+      );
+    }
+  }
+
+  Future<void> _fetchAndUpdatePost(int postId) async {
+    try {
+      final apiKey = await _getApiKey();
+      if (apiKey == null) return;
+
+      final json = await _apiClient.fetchTopicPosts(
+        _params.serverUrl,
+        apiKey,
+        _params.topicId,
+        [postId],
+      );
+
+      final posts =
+          (json['post_stream']?['posts'] as List<dynamic>?)
+              ?.map((p) => Post.fromApiJson(p as Map<String, dynamic>))
+              .toList() ??
+          [];
+
+      if (!mounted || posts.isEmpty) return;
+
+      final freshPost = posts.first;
+      _updatePost(postId, (_) => freshPost);
+    } catch (_) {}
+  }
+
+  Future<void> _reloadTopicMetadata() async {
+    try {
+      final apiKey = await _getApiKey();
+      if (apiKey == null) return;
+
+      final json = await _apiClient.fetchTopicDetail(
+        _params.serverUrl,
+        apiKey,
+        _params.topicId,
+      );
+
+      if (!mounted) return;
+
+      state = state.copyWith(
+        topic: state.topic?.copyWith(
+          title: json['title'] as String? ?? state.topic!.title,
+          fancyTitle:
+              json['fancy_title'] as String? ?? state.topic!.fancyTitle,
+          closed: json['closed'] as bool? ?? state.topic!.closed,
+          archived: json['archived'] as bool? ?? state.topic!.archived,
+          visible: json['visible'] as bool? ?? state.topic!.visible,
+          pinned: json['pinned'] as bool? ?? state.topic!.pinned,
+        ),
+      );
+    } catch (_) {}
   }
 }

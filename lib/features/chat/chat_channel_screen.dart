@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lunaris/core/models/chat_channel.dart';
 import 'package:lunaris/core/providers/chat_provider.dart';
+import 'package:lunaris/core/providers/message_bus_provider.dart';
 import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/ui/widgets/emoji_picker.dart';
 import 'package:lunaris/core/services/frequent_emoji_service.dart';
@@ -67,10 +68,25 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
       const Duration(seconds: 15),
       (_) => _pollTypingPresence(),
     );
+
+    ref.listenManual<MessageBusEvent?>(messageBusProvider, (prev, next) {
+      if (next == null || next.type != 'chat_channel_update') return;
+      final data = next.data as Map<String, dynamic>;
+      if (data['channel_id'] != widget.channel.id) return;
+      ref
+          .read(chatMessagesProvider(_params).notifier)
+          .handleChatChannelMessage(data);
+    });
+    ref
+        .read(messageBusProvider.notifier)
+        .subscribeToChatChannel(widget.channel.id);
   }
 
   @override
   void dispose() {
+    ref
+        .read(messageBusProvider.notifier)
+        .unsubscribeFromChatChannel(widget.channel.id);
     _scrollController.dispose();
     _textController.removeListener(_onTextChanged);
     _textController.dispose();
@@ -494,6 +510,12 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
 
     ref.listen(chatMessagesProvider(_params), (prev, next) {
       if ((prev?.isLoading ?? true) && !next.isLoading && next.messages.isNotEmpty) {
+        _scrollToBottom();
+        return;
+      }
+      if (prev != null &&
+          next.messages.length > prev.messages.length &&
+          !_showScrollToBottom) {
         _scrollToBottom();
       }
     });

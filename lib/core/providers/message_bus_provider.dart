@@ -85,6 +85,32 @@ class MessageBusManager extends StateNotifier<MessageBusEvent?> {
     state = MessageBusEvent(type: 'chat_message', data: msg.data);
   }
 
+  void subscribeToTopic(int topicId) {
+    _client?.subscribe('/topic/$topicId', -1, (msg) {
+      state = MessageBusEvent(
+        type: 'topic_update',
+        data: {'topic_id': topicId, ...msg.data as Map<String, dynamic>},
+      );
+    });
+  }
+
+  void unsubscribeFromTopic(int topicId) {
+    _client?.unsubscribe('/topic/$topicId');
+  }
+
+  void subscribeToChatChannel(int channelId) {
+    _client?.subscribe('/chat/$channelId', -1, (msg) {
+      state = MessageBusEvent(
+        type: 'chat_channel_update',
+        data: {'channel_id': channelId, ...msg.data as Map<String, dynamic>},
+      );
+    });
+  }
+
+  void unsubscribeFromChatChannel(int channelId) {
+    _client?.unsubscribe('/chat/$channelId');
+  }
+
   void _updateChannelPosition(String serverUrl, int messageId) {
     try {
       final accounts = _ref.read(serverAccountsProvider);

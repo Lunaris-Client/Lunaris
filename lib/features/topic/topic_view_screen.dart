@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:lunaris/core/models/site_category.dart';
+import 'package:lunaris/core/providers/message_bus_provider.dart';
 import 'package:lunaris/core/providers/topic_detail_provider.dart';
 import 'package:lunaris/core/utils/color_utils.dart';
 import 'package:lunaris/features/bookmarks/bookmark_reminder_picker.dart';
@@ -64,10 +65,18 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    ref.listenManual<MessageBusEvent?>(messageBusProvider, (prev, next) {
+      if (next == null || next.type != 'topic_update') return;
+      final data = next.data as Map<String, dynamic>;
+      if (data['topic_id'] != widget.topicId) return;
+      _notifier.handleTopicMessage(data);
+    });
+    ref.read(messageBusProvider.notifier).subscribeToTopic(widget.topicId);
   }
 
   @override
   void dispose() {
+    ref.read(messageBusProvider.notifier).unsubscribeFromTopic(widget.topicId);
     _scrollController.dispose();
     super.dispose();
   }
@@ -563,14 +572,17 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
 
     final topic = state.topic!;
     final category = widget.categoriesById?[topic.categoryId];
+    final newCount = state.newPostIds.length;
 
-    return RefreshIndicator(
-      onRefresh: () => _notifier.refresh(),
-      child: CustomScrollView(
-        controller: _scrollController,
-        slivers: [
-          SliverToBoxAdapter(
-            child: _TopicHeader(
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: () => _notifier.refresh(),
+          child: CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              SliverToBoxAdapter(
+                child: _TopicHeader(
               title: topic.title,
               category: category,
               tags: topic.tags,
@@ -648,6 +660,56 @@ class _TopicViewScreenState extends ConsumerState<TopicViewScreen> {
           const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
         ],
       ),
+    ),
+    if (newCount > 0)
+      Positioned(
+        top: 8,
+        left: 0,
+        right: 0,
+        child: Center(
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(20),
+            color: theme.colorScheme.primaryContainer,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () {
+                _notifier.loadNewPosts();
+                _scrollController.animateTo(
+                  _scrollController.position.maxScrollExtent + 200,
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeOut,
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.arrow_downward_rounded,
+                      size: 16,
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$newCount new ${newCount == 1 ? 'post' : 'posts'}',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onPrimaryContainer,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
     );
   }
 

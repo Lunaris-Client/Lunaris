@@ -89,6 +89,37 @@ class ChatMessage {
     this.reactions = const [],
   });
 
+  ChatMessage copyWith({
+    int? id,
+    String? message,
+    String? cooked,
+    String? excerpt,
+    int? userId,
+    String? username,
+    String? avatarTemplate,
+    DateTime? createdAt,
+    int? threadId,
+    int? inReplyToId,
+    bool? deleted,
+    List<ChatMessageReaction>? reactions,
+    bool clearCooked = false,
+  }) {
+    return ChatMessage(
+      id: id ?? this.id,
+      message: message ?? this.message,
+      cooked: clearCooked ? null : (cooked ?? this.cooked),
+      excerpt: excerpt ?? this.excerpt,
+      userId: userId ?? this.userId,
+      username: username ?? this.username,
+      avatarTemplate: avatarTemplate ?? this.avatarTemplate,
+      createdAt: createdAt ?? this.createdAt,
+      threadId: threadId ?? this.threadId,
+      inReplyToId: inReplyToId ?? this.inReplyToId,
+      deleted: deleted ?? this.deleted,
+      reactions: reactions ?? this.reactions,
+    );
+  }
+
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
     final user = json['user'] as Map<String, dynamic>?;
     final reactionsJson = json['reactions'] as List<dynamic>? ?? [];

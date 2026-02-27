@@ -282,20 +282,7 @@ class ChatMessagesNotifier extends StateNotifier<ChatMessagesState> {
       state = state.copyWith(
         messages: state.messages.map((m) {
           if (m.id == messageId) {
-            return ChatMessage(
-              id: m.id,
-              message: newText,
-              cooked: null,
-              excerpt: m.excerpt,
-              userId: m.userId,
-              username: m.username,
-              avatarTemplate: m.avatarTemplate,
-              createdAt: m.createdAt,
-              threadId: m.threadId,
-              inReplyToId: m.inReplyToId,
-              deleted: m.deleted,
-              reactions: m.reactions,
-            );
+            return m.copyWith(message: newText, clearCooked: true);
           }
           return m;
         }).toList(),
@@ -322,20 +309,7 @@ class ChatMessagesNotifier extends StateNotifier<ChatMessagesState> {
       state = state.copyWith(
         messages: state.messages.map((m) {
           if (m.id == messageId) {
-            return ChatMessage(
-              id: m.id,
-              message: m.message,
-              cooked: m.cooked,
-              excerpt: m.excerpt,
-              userId: m.userId,
-              username: m.username,
-              avatarTemplate: m.avatarTemplate,
-              createdAt: m.createdAt,
-              threadId: m.threadId,
-              inReplyToId: m.inReplyToId,
-              deleted: true,
-              reactions: m.reactions,
-            );
+            return m.copyWith(deleted: true);
           }
           return m;
         }).toList(),
@@ -347,6 +321,142 @@ class ChatMessagesNotifier extends StateNotifier<ChatMessagesState> {
   }
 
   Future<void> refresh() async => fetch();
+
+  void handleChatChannelMessage(Map<String, dynamic> data) {
+    if (!mounted) return;
+    final type = data['type'] as String?;
+    if (type == null) return;
+
+    switch (type) {
+      case 'sent':
+        _handleSent(data);
+      case 'edit':
+      case 'processed':
+        _handleEdit(data);
+      case 'delete':
+        _handleDelete(data);
+      case 'restore':
+        _handleRestore(data);
+      case 'reaction':
+        _handleReaction(data);
+    }
+  }
+
+  void _handleSent(Map<String, dynamic> data) {
+    final msgData = data['chat_message'] as Map<String, dynamic>?;
+    if (msgData == null) return;
+    final message = ChatMessage.fromJson(msgData);
+    addMessage(message);
+  }
+
+  void _handleEdit(Map<String, dynamic> data) {
+    final msgData = data['chat_message'] as Map<String, dynamic>?;
+    if (msgData == null) return;
+    final editedId = msgData['id'] as int?;
+    if (editedId == null) return;
+
+    state = state.copyWith(
+      messages: state.messages.map((m) {
+        if (m.id == editedId) {
+          return m.copyWith(
+            message: msgData['message'] as String? ?? m.message,
+            cooked: msgData['cooked'] as String? ?? m.cooked,
+            excerpt: msgData['excerpt'] as String? ?? m.excerpt,
+          );
+        }
+        return m;
+      }).toList(),
+    );
+  }
+
+  void _handleDelete(Map<String, dynamic> data) {
+    final deletedId = data['deleted_id'] as int?;
+    if (deletedId == null) return;
+
+    state = state.copyWith(
+      messages: state.messages.map((m) {
+        if (m.id == deletedId) return m.copyWith(deleted: true);
+        return m;
+      }).toList(),
+    );
+  }
+
+  void _handleRestore(Map<String, dynamic> data) {
+    final msgData = data['chat_message'] as Map<String, dynamic>?;
+    if (msgData == null) return;
+    final restoredMsg = ChatMessage.fromJson(msgData);
+
+    final exists = state.messages.any((m) => m.id == restoredMsg.id);
+    if (exists) {
+      state = state.copyWith(
+        messages: state.messages.map((m) {
+          if (m.id == restoredMsg.id) return restoredMsg;
+          return m;
+        }).toList(),
+      );
+    } else {
+      final msgs = [...state.messages, restoredMsg];
+      msgs.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      state = state.copyWith(messages: msgs);
+    }
+  }
+
+  void _handleReaction(Map<String, dynamic> data) {
+    final messageId = data['chat_message_id'] as int?;
+    final emoji = data['emoji'] as String?;
+    final action = data['action'] as String?;
+    final userData = data['user'] as Map<String, dynamic>?;
+    if (messageId == null || emoji == null || action == null) return;
+
+    state = state.copyWith(
+      messages: state.messages.map((m) {
+        if (m.id != messageId) return m;
+
+        final reactions = List<ChatMessageReaction>.from(m.reactions);
+        final existingIdx = reactions.indexWhere((r) => r.emoji == emoji);
+
+        if (action == 'add') {
+          final reactionUser =
+              userData != null ? ReactionUser.fromJson(userData) : null;
+          if (existingIdx >= 0) {
+            final existing = reactions[existingIdx];
+            reactions[existingIdx] = ChatMessageReaction(
+              emoji: existing.emoji,
+              count: existing.count + 1,
+              reacted: existing.reacted,
+              users: reactionUser != null
+                  ? [...existing.users, reactionUser]
+                  : existing.users,
+            );
+          } else {
+            reactions.add(ChatMessageReaction(
+              emoji: emoji,
+              count: 1,
+              reacted: false,
+              users: reactionUser != null ? [reactionUser] : [],
+            ));
+          }
+        } else if (action == 'remove' && existingIdx >= 0) {
+          final existing = reactions[existingIdx];
+          if (existing.count <= 1) {
+            reactions.removeAt(existingIdx);
+          } else {
+            final userId = userData?['id'] as int?;
+            reactions[existingIdx] = ChatMessageReaction(
+              emoji: existing.emoji,
+              count: existing.count - 1,
+              reacted: existing.reacted,
+              users: userId != null
+                  ? existing.users.where((u) => u.id != userId).toList()
+                  : existing.users,
+            );
+          }
+        }
+
+        return m.copyWith(reactions: reactions);
+      }).toList(),
+    );
+  }
 
   Future<void> _markRead(String apiKey, int messageId) async {
     try {
