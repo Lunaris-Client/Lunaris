@@ -62,10 +62,16 @@ class ChatChannelListNotifier extends StateNotifier<ChatChannelListState> {
       if (apiKey == null) return;
 
       final data = await _apiClient.fetchChatChannels(_serverUrl, apiKey);
-      final channelsJson = data['channels'] as List<dynamic>? ?? [];
-      final channels = channelsJson
-          .map((c) => ChatChannel.fromJson(c as Map<String, dynamic>))
-          .toList();
+      final publicJson =
+          data['public_channels'] as List<dynamic>? ?? [];
+      final dmJson =
+          data['direct_message_channels'] as List<dynamic>? ?? [];
+      final channels = [
+        ...publicJson
+            .map((c) => ChatChannel.fromJson(c as Map<String, dynamic>)),
+        ...dmJson
+            .map((c) => ChatChannel.fromJson(c as Map<String, dynamic>)),
+      ];
 
       if (!mounted) return;
       state = state.copyWith(channels: channels, isLoading: false);

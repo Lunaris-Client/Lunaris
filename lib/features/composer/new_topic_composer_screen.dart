@@ -220,32 +220,45 @@ class _NewTopicComposerScreenState
           icon: const Icon(Icons.close_rounded),
           onPressed: () => _confirmDiscard(context),
         ),
-        title: const Text('New Topic', style: TextStyle(fontSize: 16)),
+        titleSpacing: 0,
+        title: const Text(
+          'New Topic',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
         actions: [
           if (draft.isSaving)
-            const Padding(
-              padding: EdgeInsets.all(16),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
               child: SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                ),
               ),
             ),
           Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilledButton(
+            padding: const EdgeInsets.only(right: 12),
+            child: FilledButton.icon(
               onPressed: _canSubmit && !_isSubmitting ? _submit : null,
-              child:
-                  _isSubmitting
-                      ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                      : const Text('Create'),
+              icon: _isSubmitting
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: theme.colorScheme.onPrimary,
+                      ),
+                    )
+                  : const Icon(Icons.check_rounded, size: 18),
+              label: Text(
+                _isSubmitting ? 'Creating...' : 'Create',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
             ),
           ),
         ],
@@ -253,18 +266,17 @@ class _NewTopicComposerScreenState
       body: Column(
         children: [
           _buildMetadataSection(theme),
+          if (isUploading) const LinearProgressIndicator(minHeight: 2),
+          Expanded(
+            child: _showPreview ? _buildPreview(theme) : _buildEditor(theme),
+          ),
+          if (_similarTopics.isNotEmpty) _buildSimilarTopics(theme),
           MarkdownToolbar(
             controller: _bodyController,
             previewActive: _showPreview,
             onTogglePreview: () => setState(() => _showPreview = !_showPreview),
             onAttachTap: showAttachPicker,
           ),
-          if (isUploading)
-            const LinearProgressIndicator(),
-          Expanded(
-            child: _showPreview ? _buildPreview(theme) : _buildEditor(theme),
-          ),
-          if (_similarTopics.isNotEmpty) _buildSimilarTopics(theme),
         ],
       ),
     );
@@ -273,19 +285,26 @@ class _NewTopicComposerScreenState
   Widget _buildMetadataSection(ThemeData theme) {
     return Container(
       decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainer.withValues(alpha: 0.5),
         border: Border(
-          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+          bottom: BorderSide(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+          ),
         ),
       ),
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
             child: TextField(
               controller: _titleController,
               autofocus: true,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Topic title',
+                hintStyle: TextStyle(
+                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                  fontWeight: FontWeight.w500,
+                ),
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.zero,
               ),
@@ -296,15 +315,26 @@ class _NewTopicComposerScreenState
               onSubmitted: (_) => _bodyFocus.requestFocus(),
             ),
           ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
-          const SizedBox(height: 4),
+          Divider(
+            height: 1,
+            indent: 16,
+            endIndent: 16,
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+          ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
             child: Row(
               children: [
                 Expanded(child: _buildCategorySelector(theme)),
                 if (widget.canTagTopics) ...[
-                  const SizedBox(width: 12),
+                  SizedBox(
+                    height: 20,
+                    child: VerticalDivider(
+                      width: 24,
+                      thickness: 1,
+                      color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+                    ),
+                  ),
                   Expanded(child: _buildTagInput(theme)),
                 ],
               ],
@@ -312,26 +342,30 @@ class _NewTopicComposerScreenState
           ),
           if (_selectedTags.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Wrap(
                 spacing: 6,
                 runSpacing: 4,
-                children:
-                    _selectedTags
-                        .map(
-                          (tag) => InputChip(
-                            label: Text(tag),
-                            onDeleted: () => _removeTag(tag),
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.compact,
-                          ),
-                        )
-                        .toList(),
+                children: _selectedTags
+                    .map(
+                      (tag) => InputChip(
+                        label: Text(
+                          tag,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        onDeleted: () => _removeTag(tag),
+                        materialTapTargetSize:
+                            MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        deleteIconColor:
+                            theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                      ),
+                    )
+                    .toList(),
               ),
             ),
           if (_tagSuggestions.isNotEmpty) _buildTagSuggestions(theme),
-          const SizedBox(height: 4),
         ],
       ),
     );
@@ -343,13 +377,36 @@ class _NewTopicComposerScreenState
 
     return DropdownButtonFormField<int?>(
       initialValue: _selectedCategoryId,
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         hintText: 'Category',
-        border: InputBorder.none,
-        contentPadding: EdgeInsets.zero,
+        hintStyle: TextStyle(
+          color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+          fontSize: 13,
+        ),
+        filled: true,
+        fillColor: theme.colorScheme.surfaceContainerHigh.withValues(alpha: 0.4),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(
+            color: theme.colorScheme.primary.withValues(alpha: 0.5),
+          ),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         isDense: true,
       ),
       isExpanded: true,
+      style: theme.textTheme.bodyMedium,
+      focusColor: theme.colorScheme.primary.withValues(alpha: 0.08),
+      dropdownColor: theme.colorScheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(12),
       items: [
         const DropdownMenuItem<int?>(value: null, child: Text('No category')),
         ...writableCategories.map((cat) {
@@ -389,12 +446,17 @@ class _NewTopicComposerScreenState
   Widget _buildTagInput(ThemeData theme) {
     return TextField(
       controller: _tagController,
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         hintText: 'Add tags...',
+        hintStyle: TextStyle(
+          color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+          fontSize: 13,
+        ),
         border: InputBorder.none,
         contentPadding: EdgeInsets.zero,
         isDense: true,
       ),
+      style: theme.textTheme.bodyMedium,
       onChanged: _searchTags,
       onSubmitted: (value) {
         if (value.trim().isNotEmpty) _addTag(value.trim());
@@ -405,19 +467,21 @@ class _NewTopicComposerScreenState
   Widget _buildTagSuggestions(ThemeData theme) {
     return Container(
       constraints: const BoxConstraints(maxHeight: 120),
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: ListView.builder(
         shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 4),
         itemCount: _tagSuggestions.length,
         itemBuilder: (context, index) {
           final tag = _tagSuggestions[index];
           return ListTile(
             dense: true,
-            title: Text(tag),
+            visualDensity: VisualDensity.compact,
+            title: Text(tag, style: const TextStyle(fontSize: 13)),
             onTap: () => _addTag(tag),
           );
         },
@@ -427,18 +491,22 @@ class _NewTopicComposerScreenState
 
   Widget _buildEditor(ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: TextField(
         controller: _bodyController,
         focusNode: _bodyFocus,
         maxLines: null,
         expands: true,
         textAlignVertical: TextAlignVertical.top,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           hintText: 'Write your topic content...',
+          hintStyle: TextStyle(
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+          ),
           border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
         ),
-        style: theme.textTheme.bodyLarge,
+        style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
       ),
     );
   }
@@ -450,24 +518,29 @@ class _NewTopicComposerScreenState
         child: Text(
           'Nothing to preview',
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           ),
         ),
       );
     }
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Text(text, style: theme.textTheme.bodyLarge),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: SelectableText(
+        text,
+        style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
+      ),
     );
   }
 
   Widget _buildSimilarTopics(ThemeData theme) {
     return Container(
-      constraints: const BoxConstraints(maxHeight: 150),
+      constraints: const BoxConstraints(maxHeight: 140),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
+        color: theme.colorScheme.surfaceContainer.withValues(alpha: 0.5),
         border: Border(
-          top: BorderSide(color: theme.colorScheme.outlineVariant),
+          top: BorderSide(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+          ),
         ),
       ),
       child: Column(
@@ -477,13 +550,15 @@ class _NewTopicComposerScreenState
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Text(
               'Similar topics',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                letterSpacing: 0.5,
               ),
             ),
           ),
           Expanded(
             child: ListView.builder(
+              padding: EdgeInsets.zero,
               itemCount: _similarTopics.length,
               itemBuilder: (context, index) {
                 final topic = _similarTopics[index];
@@ -494,15 +569,17 @@ class _NewTopicComposerScreenState
                         : topic.toString();
                 return ListTile(
                   dense: true,
+                  visualDensity: VisualDensity.compact,
                   title: Text(
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13),
                   ),
                   leading: Icon(
                     Icons.topic_outlined,
-                    size: 18,
-                    color: theme.colorScheme.onSurfaceVariant,
+                    size: 16,
+                    color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
                   ),
                 );
               },

@@ -135,14 +135,19 @@ class _ReplyComposerScreenState extends ConsumerState<ReplyComposerScreen>
           icon: const Icon(Icons.close_rounded),
           onPressed: () => _confirmDiscard(context),
         ),
+        titleSpacing: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Reply', style: TextStyle(fontSize: 16)),
+            const Text(
+              'Reply',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
             Text(
               widget.topicTitle,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 12,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -151,73 +156,90 @@ class _ReplyComposerScreenState extends ConsumerState<ReplyComposerScreen>
         ),
         actions: [
           if (draft.isSaving)
-            const Padding(
-              padding: EdgeInsets.all(16),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
               child: SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                ),
               ),
             ),
           Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilledButton(
+            padding: const EdgeInsets.only(right: 12),
+            child: FilledButton.icon(
               onPressed: _canSubmit && !_isSubmitting ? _submit : null,
-              child:
-                  _isSubmitting
-                      ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                      : const Text('Post'),
+              icon: _isSubmitting
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: theme.colorScheme.onPrimary,
+                      ),
+                    )
+                  : const Icon(Icons.send_rounded, size: 18),
+              label: Text(
+                _isSubmitting ? 'Posting...' : 'Post',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
             ),
           ),
         ],
       ),
       body: Column(
         children: [
+          if (widget.replyToUsername != null) _buildReplyBanner(theme),
+          if (isUploading) const LinearProgressIndicator(minHeight: 2),
+          Expanded(
+            child: _showPreview ? _buildPreview(theme) : _buildEditor(theme),
+          ),
           MarkdownToolbar(
             controller: _bodyController,
             previewActive: _showPreview,
             onTogglePreview: () => setState(() => _showPreview = !_showPreview),
             onAttachTap: showAttachPicker,
           ),
-          if (isUploading)
-            const LinearProgressIndicator(),
-          if (widget.replyToUsername != null)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: theme.colorScheme.surfaceContainerHighest,
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.reply_rounded,
-                    size: 16,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      widget.replyToPostNumber != null
-                          ? 'Replying to ${widget.replyToUsername} (#${widget.replyToPostNumber})'
-                          : 'Replying to topic',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReplyBanner(ThemeData theme) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.reply_rounded,
+            size: 15,
+            color: theme.colorScheme.primary.withValues(alpha: 0.7),
+          ),
+          const SizedBox(width: 8),
           Expanded(
-            child: _showPreview ? _buildPreview(theme) : _buildEditor(theme),
+            child: Text(
+              widget.replyToPostNumber != null
+                  ? 'Replying to ${widget.replyToUsername} · #${widget.replyToPostNumber}'
+                  : 'Replying to topic',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.primary.withValues(alpha: 0.8),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
@@ -226,7 +248,7 @@ class _ReplyComposerScreenState extends ConsumerState<ReplyComposerScreen>
 
   Widget _buildEditor(ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: TextField(
         controller: _bodyController,
         focusNode: _bodyFocus,
@@ -234,11 +256,15 @@ class _ReplyComposerScreenState extends ConsumerState<ReplyComposerScreen>
         maxLines: null,
         expands: true,
         textAlignVertical: TextAlignVertical.top,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           hintText: 'Write your reply...',
+          hintStyle: TextStyle(
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+          ),
           border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
         ),
-        style: theme.textTheme.bodyLarge,
+        style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
       ),
     );
   }
@@ -250,14 +276,17 @@ class _ReplyComposerScreenState extends ConsumerState<ReplyComposerScreen>
         child: Text(
           'Nothing to preview',
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           ),
         ),
       );
     }
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Text(text, style: theme.textTheme.bodyLarge),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: SelectableText(
+        text,
+        style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
+      ),
     );
   }
 

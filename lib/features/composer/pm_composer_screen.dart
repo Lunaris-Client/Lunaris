@@ -188,25 +188,33 @@ class _PmComposerScreenState extends ConsumerState<PmComposerScreen>
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('New Message'),
+          titleSpacing: 0,
+          title: const Text(
+            'New Message',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
           actions: [
             Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: 12),
               child: FilledButton.icon(
                 icon: _isSubmitting
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: theme.colorScheme.onPrimary,
                         ),
                       )
                     : const Icon(Icons.send_rounded, size: 18),
-                label: _isSubmitting
-                    ? const Text('Sending...')
-                    : const Text('Send'),
+                label: Text(
+                  _isSubmitting ? 'Sending...' : 'Send',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
                 onPressed: _canSubmit && !_isSubmitting ? _submit : null,
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                ),
               ),
             ),
           ],
@@ -214,19 +222,25 @@ class _PmComposerScreenState extends ConsumerState<PmComposerScreen>
         body: Column(
           children: [
             _buildRecipientsSection(theme),
-            const Divider(height: 1),
+            Divider(
+              height: 1,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+            ),
             _buildTitleField(theme),
-            const Divider(height: 1),
+            Divider(
+              height: 1,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+            ),
+            if (isUploading) const LinearProgressIndicator(minHeight: 2),
+            Expanded(
+              child: _showPreview ? _buildPreview(theme) : _buildEditor(theme),
+            ),
             MarkdownToolbar(
               controller: _bodyController,
               previewActive: _showPreview,
               onTogglePreview: () =>
                   setState(() => _showPreview = !_showPreview),
               onAttachTap: showAttachPicker,
-            ),
-            if (isUploading) const LinearProgressIndicator(),
-            Expanded(
-              child: _showPreview ? _buildPreview(theme) : _buildEditor(theme),
             ),
           ],
         ),
@@ -235,33 +249,46 @@ class _PmComposerScreenState extends ConsumerState<PmComposerScreen>
   }
 
   Widget _buildRecipientsSection(ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+    return Container(
+      color: theme.colorScheme.surfaceContainer.withValues(alpha: 0.3),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            children: [
-              for (final r in _recipients)
-                Chip(
-                  label: Text(r),
-                  deleteIcon: const Icon(Icons.close, size: 16),
-                  onDeleted: () => _removeRecipient(r),
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity.compact,
-                ),
-            ],
-          ),
+          if (_recipients.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  for (final r in _recipients)
+                    InputChip(
+                      label: Text(r, style: const TextStyle(fontSize: 12)),
+                      deleteIcon: const Icon(Icons.close, size: 14),
+                      onDeleted: () => _removeRecipient(r),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      deleteIconColor:
+                          theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                    ),
+                ],
+              ),
+            ),
           TextField(
             controller: _recipientController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'Add a recipient...',
+              hintStyle: TextStyle(
+                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                fontSize: 13,
+              ),
               border: InputBorder.none,
               isDense: true,
-              contentPadding: EdgeInsets.symmetric(vertical: 8),
+              contentPadding: const EdgeInsets.symmetric(vertical: 8),
             ),
+            style: theme.textTheme.bodyMedium,
             onChanged: _searchUsers,
             onSubmitted: (value) {
               if (value.trim().isNotEmpty) _addRecipient(value.trim());
@@ -270,8 +297,14 @@ class _PmComposerScreenState extends ConsumerState<PmComposerScreen>
           if (_userSuggestions.isNotEmpty)
             Container(
               constraints: const BoxConstraints(maxHeight: 180),
+              margin: const EdgeInsets.only(bottom: 4),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: ListView.builder(
                 shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 4),
                 itemCount: _userSuggestions.length,
                 itemBuilder: (context, index) {
                   final user = _userSuggestions[index] as Map<String, dynamic>;
@@ -280,22 +313,34 @@ class _PmComposerScreenState extends ConsumerState<PmComposerScreen>
                   final avatar = user['avatar_template'] as String?;
                   return ListTile(
                     dense: true,
+                    visualDensity: VisualDensity.compact,
                     leading: avatar != null
                         ? CircleAvatar(
-                            radius: 16,
+                            radius: 14,
                             backgroundImage: NetworkImage(
                               avatar.startsWith('http')
                                   ? avatar.replaceAll('{size}', '40')
                                   : '${widget.serverUrl}${avatar.replaceAll('{size}', '40')}',
                             ),
                           )
-                        : const CircleAvatar(
-                            radius: 16,
-                            child: Icon(Icons.person, size: 18),
+                        : CircleAvatar(
+                            radius: 14,
+                            backgroundColor: theme.colorScheme.primaryContainer,
+                            child: Icon(
+                              Icons.person,
+                              size: 14,
+                              color: theme.colorScheme.onPrimaryContainer,
+                            ),
                           ),
-                    title: Text(username),
+                    title: Text(username, style: const TextStyle(fontSize: 13)),
                     subtitle: name != null && name.isNotEmpty
-                        ? Text(name)
+                        ? Text(
+                            name,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          )
                         : null,
                     onTap: () => _addRecipient(username),
                   );
@@ -312,12 +357,18 @@ class _PmComposerScreenState extends ConsumerState<PmComposerScreen>
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: TextField(
         controller: _titleController,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           hintText: 'Message title',
+          hintStyle: TextStyle(
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+            fontWeight: FontWeight.w500,
+          ),
           border: InputBorder.none,
           isDense: true,
         ),
-        style: theme.textTheme.titleMedium,
+        style: theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
         textInputAction: TextInputAction.next,
         onSubmitted: (_) => _bodyFocus.requestFocus(),
       ),
@@ -326,37 +377,44 @@ class _PmComposerScreenState extends ConsumerState<PmComposerScreen>
 
   Widget _buildEditor(ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: TextField(
         controller: _bodyController,
         focusNode: _bodyFocus,
         maxLines: null,
         expands: true,
         textAlignVertical: TextAlignVertical.top,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           hintText: 'Write your message...',
+          hintStyle: TextStyle(
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+          ),
           border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
         ),
-        style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
+        style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
       ),
     );
   }
 
   Widget _buildPreview(ThemeData theme) {
     final raw = _bodyController.text;
+    if (raw.trim().isEmpty) {
+      return Center(
+        child: Text(
+          'Nothing to preview',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+          ),
+        ),
+      );
+    }
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: raw.isEmpty
-          ? Text(
-              'Nothing to preview',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.outline,
-              ),
-            )
-          : SelectableText(
-              raw,
-              style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
-            ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: SelectableText(
+        raw,
+        style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
+      ),
     );
   }
 }

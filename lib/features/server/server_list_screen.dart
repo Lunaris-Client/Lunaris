@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lunaris/core/models/server_account.dart';
 import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/ui/widgets/adaptive_dialog.dart';
+import 'package:lunaris/ui/widgets/server_icon.dart';
 
 class ServerListScreen extends ConsumerWidget {
   const ServerListScreen({super.key});
@@ -169,9 +169,10 @@ class _ServerTile extends StatelessWidget {
             _showContextMenu(context, details.globalPosition),
         child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: _ServerAvatar(
+        leading: ServerIcon(
           logoUrl: account.siteLogoUrl,
           faviconUrl: account.faviconUrl,
+          size: 40,
         ),
         title: Text(
           account.siteName,
@@ -224,52 +225,6 @@ class _ServerTile extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _ServerAvatar extends StatelessWidget {
-  final String? logoUrl;
-  final String? faviconUrl;
-
-  const _ServerAvatar({this.logoUrl, this.faviconUrl});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final imageUrl = logoUrl ?? faviconUrl;
-
-    if (imageUrl == null) {
-      return Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.primaryContainer,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(Icons.forum_rounded,
-            color: theme.colorScheme.onPrimaryContainer, size: 20),
-      );
-    }
-
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: CachedNetworkImage(
-          imageUrl: imageUrl,
-          width: 40,
-          height: 40,
-          fit: BoxFit.contain,
-          errorWidget: (_, __, ___) => Icon(Icons.forum_rounded,
-              color: theme.colorScheme.onPrimaryContainer, size: 20),
-        ),
-      ),
     );
   }
 }

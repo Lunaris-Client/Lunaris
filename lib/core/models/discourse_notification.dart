@@ -14,6 +14,8 @@ class DiscourseNotification with _$DiscourseNotification {
     int? postNumber,
     String? slug,
     String? fancyTitle,
+    String? actingUserAvatarTemplate,
+    String? actingUserName,
     required NotificationData data,
   }) = _DiscourseNotification;
 
@@ -31,6 +33,9 @@ class DiscourseNotification with _$DiscourseNotification {
       postNumber: json['post_number'] as int?,
       slug: json['slug'] as String?,
       fancyTitle: json['fancy_title'] as String?,
+      actingUserAvatarTemplate:
+          json['acting_user_avatar_template'] as String?,
+      actingUserName: json['acting_user_name'] as String?,
       data: NotificationData(
         displayUsername: dataJson['display_username'] as String?,
         originalUsername: dataJson['original_username'] as String?,
@@ -42,6 +47,18 @@ class DiscourseNotification with _$DiscourseNotification {
         badgeSlug: dataJson['badge_slug'] as String?,
         groupName: dataJson['group_name'] as String?,
         count: dataJson['count'] as int?,
+        chatChannelId: dataJson['chat_channel_id'] as int?,
+        chatMessageId: dataJson['chat_message_id'] as int?,
+        chatThreadId: dataJson['chat_thread_id'] as int?,
+        chatChannelTitle: dataJson['chat_channel_title'] as String?,
+        chatChannelSlug: dataJson['chat_channel_slug'] as String?,
+        isDirectMessageChannel:
+            dataJson['is_direct_message_channel'] as bool?,
+        mentionedByUsername:
+            dataJson['mentioned_by_username'] as String?,
+        invitedByUsername:
+            dataJson['invited_by_username'] as String?,
+        username: dataJson['username'] as String?,
       ),
     );
   }
@@ -60,6 +77,15 @@ class NotificationData with _$NotificationData {
     String? badgeSlug,
     String? groupName,
     int? count,
+    int? chatChannelId,
+    int? chatMessageId,
+    int? chatThreadId,
+    String? chatChannelTitle,
+    String? chatChannelSlug,
+    bool? isDirectMessageChannel,
+    String? mentionedByUsername,
+    String? invitedByUsername,
+    String? username,
   }) = _NotificationData;
 
   factory NotificationData.fromJson(Map<String, dynamic> json) =>

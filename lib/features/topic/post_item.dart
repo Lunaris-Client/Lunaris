@@ -21,6 +21,7 @@ class PostItem extends StatefulWidget {
   final VoidCallback? onRecoverTap;
   final VoidCallback? onFlagTap;
   final VoidCallback? onAcceptAnswerTap;
+  final ValueChanged<String>? onUserTap;
 
   const PostItem({
     super.key,
@@ -38,6 +39,7 @@ class PostItem extends StatefulWidget {
     this.onRecoverTap,
     this.onFlagTap,
     this.onAcceptAnswerTap,
+    this.onUserTap,
   });
 
   @override
@@ -54,7 +56,7 @@ class _PostItemState extends State<PostItem> {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -63,9 +65,9 @@ class _PostItemState extends State<PostItem> {
             _buildAcceptedBadge(theme),
           if (widget.showReplyIndicator && post.replyToPostNumber != null)
             _buildReplyIndicator(theme),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _buildContent(),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           _buildActionBar(theme),
         ],
       ),
@@ -78,109 +80,95 @@ class _PostItemState extends State<PostItem> {
             ? resolveAvatarUrl(widget.serverUrl, post.avatarTemplate!, size: 40)
             : null;
 
+    final secondaryColor = theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7);
+
     return Row(
       children: [
-        if (avatarUrl != null)
-          CircleAvatar(
-            radius: 18,
-            backgroundImage: CachedNetworkImageProvider(avatarUrl),
-          )
-        else
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: theme.colorScheme.primaryContainer,
-            child: Icon(
-              Icons.person,
-              size: 18,
-              color: theme.colorScheme.onPrimaryContainer,
-            ),
-          ),
+        GestureDetector(
+          onTap: () => widget.onUserTap?.call(post.username),
+          child: avatarUrl != null
+              ? CircleAvatar(
+                  radius: 16,
+                  backgroundImage: CachedNetworkImageProvider(avatarUrl),
+                )
+              : CircleAvatar(
+                  radius: 16,
+                  backgroundColor: theme.colorScheme.primaryContainer,
+                  child: Icon(
+                    Icons.person,
+                    size: 16,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+        ),
         const SizedBox(width: 10),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Row(
-                children: [
-                  Flexible(
+              Flexible(
+                child: GestureDetector(
+                  onTap: () => widget.onUserTap?.call(post.username),
+                  child: Text(
+                    post.name?.isNotEmpty == true
+                        ? post.name!
+                        : post.username,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              if (post.admin || post.moderator) ...[
+                const SizedBox(width: 4),
+                _buildStaffBadge(theme),
+              ],
+              if (post.userTitle != null && post.userTitle!.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                Flexible(
+                  flex: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: post.flairBgColor != null
+                          ? parseHexColor(post.flairBgColor!).withValues(alpha: 0.12)
+                          : theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
                     child: Text(
-                      post.name?.isNotEmpty == true
-                          ? post.name!
-                          : post.username,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
+                      post.userTitle!,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: post.flairColor != null
+                            ? parseHexColor(post.flairColor!)
+                            : theme.colorScheme.primary,
+                        fontSize: 10,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (post.admin || post.moderator) ...[
-                    const SizedBox(width: 4),
-                    _buildStaffBadge(theme),
-                  ],
-                ],
-              ),
-              Row(
-                children: [
-                  if (post.name?.isNotEmpty == true) ...[
-                    Text(
-                      post.username,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  if (post.userTitle != null && post.userTitle!.isNotEmpty) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color:
-                            post.flairBgColor != null
-                                ? parseHexColor(
-                                  post.flairBgColor!,
-                                ).withValues(alpha: 0.15)
-                                : theme.colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        post.userTitle!,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color:
-                              post.flairColor != null
-                                  ? parseHexColor(post.flairColor!)
-                                  : theme.colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  GestureDetector(
-                    onTap:
-                        () => setState(
-                          () => _showAbsoluteTime = !_showAbsoluteTime,
-                        ),
-                    child: Text(
-                      _showAbsoluteTime
-                          ? _formatAbsolute(post.createdAt)
-                          : timeago.format(post.createdAt),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                ),
+              ],
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: () => setState(() => _showAbsoluteTime = !_showAbsoluteTime),
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                  child: Text(
+                    _showAbsoluteTime
+                        ? _formatAbsolute(post.createdAt)
+                        : timeago.format(post.createdAt),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: secondaryColor,
+                      fontSize: 11,
                     ),
                   ),
-                ],
+                ),
               ),
             ],
-          ),
-        ),
-        Text(
-          '#${post.postNumber}',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           ),
         ),
       ],
@@ -210,34 +198,28 @@ class _PostItemState extends State<PostItem> {
 
   Widget _buildAcceptedBadge(ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.only(left: 46, top: 6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.green.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.check_circle_rounded, size: 16, color: Colors.green),
-            const SizedBox(width: 4),
-            Text(
-              'Accepted Answer',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: Colors.green,
-                fontWeight: FontWeight.w600,
-              ),
+      padding: const EdgeInsets.only(left: 42, top: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.check_circle_rounded, size: 14, color: Colors.green),
+          const SizedBox(width: 4),
+          Text(
+            'Accepted Answer',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: Colors.green,
+              fontWeight: FontWeight.w500,
+              fontSize: 11,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildReplyIndicator(ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.only(left: 46, top: 4),
+      padding: const EdgeInsets.only(left: 42, top: 4),
       child: InkWell(
         onTap: () => widget.onReplyToTap?.call(post.replyToPostNumber!),
         borderRadius: BorderRadius.circular(4),
@@ -267,10 +249,11 @@ class _PostItemState extends State<PostItem> {
 
   Widget _buildContent() {
     return Padding(
-      padding: const EdgeInsets.only(left: 46),
+      padding: const EdgeInsets.only(left: 42),
       child: CookedHtmlRenderer(
         html: post.cooked,
         serverUrl: widget.serverUrl,
+        onMentionTap: (username) => widget.onUserTap?.call(username),
         onImageTap: (url) => FullScreenImageViewer.show(context, url),
       ),
     );
@@ -281,42 +264,30 @@ class _PostItemState extends State<PostItem> {
     final canLike = post.actionsSummary.any((a) => a.id == 2 && a.canAct);
 
     return Padding(
-      padding: const EdgeInsets.only(left: 46),
+      padding: const EdgeInsets.only(left: 42),
       child: Row(
         children: [
           _ActionButton(
-            icon:
-                liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+            icon: liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
             label: post.likeCount > 0 ? formatCount(post.likeCount) : null,
             color: liked ? theme.colorScheme.error : null,
             onTap: canLike || liked ? widget.onLikeTap : null,
           ),
           if (post.replyCount > 0)
             _ActionButton(
-              icon: Icons.comment_outlined,
+              icon: Icons.chat_bubble_outline_rounded,
               label: formatCount(post.replyCount),
               onTap: null,
             ),
           _ActionButton(
-            icon:
-                post.bookmarked
-                    ? Icons.bookmark_rounded
-                    : Icons.bookmark_border_rounded,
+            icon: post.bookmarked
+                ? Icons.bookmark_rounded
+                : Icons.bookmark_border_rounded,
             color: post.bookmarked ? theme.colorScheme.primary : null,
             onTap: widget.onBookmarkTap,
             onLongPress: widget.onBookmarkLongPress,
           ),
-          _ActionButton(icon: Icons.share_outlined, onTap: widget.onShareTap),
           _ActionButton(icon: Icons.reply_rounded, onTap: widget.onReplyTap),
-          if (post.wiki)
-            Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Icon(
-                Icons.edit_note_rounded,
-                size: 16,
-                color: theme.colorScheme.tertiary,
-              ),
-            ),
           if (!post.hidden || widget.isStaff)
             _PostOverflowMenu(
               post: post,
@@ -325,6 +296,7 @@ class _PostItemState extends State<PostItem> {
               onRecoverTap: widget.onRecoverTap,
               onFlagTap: widget.onFlagTap,
               onAcceptAnswerTap: widget.onAcceptAnswerTap,
+              onShareTap: widget.onShareTap,
             ),
         ],
       ),
@@ -356,28 +328,35 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final effectiveColor =
-        color ?? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7);
+        color ?? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.78);
 
-    return InkWell(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      borderRadius: BorderRadius.circular(4),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: effectiveColor),
-            if (label != null) ...[
-              const SizedBox(width: 4),
-              Text(
-                label!,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: effectiveColor,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        borderRadius: BorderRadius.circular(8),
+        mouseCursor: onTap != null
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: effectiveColor),
+              if (label != null) ...[              
+                const SizedBox(width: 4),
+                Text(
+                  label!,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: effectiveColor,
+                    fontSize: 12,
+                  ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -391,6 +370,7 @@ class _PostOverflowMenu extends StatelessWidget {
   final VoidCallback? onRecoverTap;
   final VoidCallback? onFlagTap;
   final VoidCallback? onAcceptAnswerTap;
+  final VoidCallback? onShareTap;
 
   const _PostOverflowMenu({
     required this.post,
@@ -399,6 +379,7 @@ class _PostOverflowMenu extends StatelessWidget {
     this.onRecoverTap,
     this.onFlagTap,
     this.onAcceptAnswerTap,
+    this.onShareTap,
   });
 
   @override
@@ -407,13 +388,15 @@ class _PostOverflowMenu extends StatelessWidget {
     return PopupMenuButton<String>(
       icon: Icon(
         Icons.more_horiz_rounded,
-        size: 18,
-        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+        size: 16,
+        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.55),
       ),
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
       onSelected: (value) {
         switch (value) {
+          case 'share':
+            onShareTap?.call();
           case 'delete':
             onDeleteTap?.call();
           case 'recover':
@@ -425,6 +408,14 @@ class _PostOverflowMenu extends StatelessWidget {
         }
       },
       itemBuilder: (ctx) => [
+        const PopupMenuItem(
+          value: 'share',
+          child: ListTile(
+            leading: Icon(Icons.share_outlined),
+            title: Text('Share'),
+            dense: true,
+          ),
+        ),
         if (post.hidden && isStaff)
           const PopupMenuItem(
             value: 'recover',

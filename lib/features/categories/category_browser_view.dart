@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:lunaris/core/models/site_category.dart';
 import 'package:lunaris/core/models/site_data.dart';
 import 'package:lunaris/core/utils/color_utils.dart';
 
 class CategoryBrowserView extends StatelessWidget {
   final SiteData siteData;
+  final String serverUrl;
   final ValueChanged<SiteCategory> onCategorySelected;
+  final VoidCallback? onAllTopicsTap;
 
   const CategoryBrowserView({
     super.key,
     required this.siteData,
+    required this.serverUrl,
     required this.onCategorySelected,
+    this.onAllTopicsTap,
   });
 
   @override
@@ -31,12 +36,17 @@ class CategoryBrowserView extends StatelessWidget {
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: hierarchy.length,
+      itemCount: hierarchy.length + (onAllTopicsTap != null ? 1 : 0),
       itemBuilder: (context, index) {
-        final (category, children) = hierarchy[index];
+        if (onAllTopicsTap != null && index == 0) {
+          return _AllTopicsItem(onTap: onAllTopicsTap!);
+        }
+        final adjustedIndex = onAllTopicsTap != null ? index - 1 : index;
+        final (category, children) = hierarchy[adjustedIndex];
         return _ParentCategoryTile(
           category: category,
           children: children,
+          serverUrl: serverUrl,
           onCategorySelected: onCategorySelected,
         );
       },
@@ -70,11 +80,13 @@ class CategoryBrowserView extends StatelessWidget {
 class _ParentCategoryTile extends StatelessWidget {
   final SiteCategory category;
   final List<SiteCategory> children;
+  final String serverUrl;
   final ValueChanged<SiteCategory> onCategorySelected;
 
   const _ParentCategoryTile({
     required this.category,
     required this.children,
+    required this.serverUrl,
     required this.onCategorySelected,
   });
 
@@ -99,7 +111,9 @@ class _ParentCategoryTile extends StatelessWidget {
                     color: color,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Center(child: _categoryIcon(category, theme)),
+                  child: Center(
+                    child: _categoryImage(category, serverUrl, theme),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -154,9 +168,50 @@ class _ParentCategoryTile extends StatelessWidget {
     );
   }
 
-  static Widget _categoryIcon(SiteCategory category, ThemeData theme) {
-    if (category.emoji != null) {
-      return Text(category.emoji!, style: const TextStyle(fontSize: 18));
+  static Widget _categoryImage(
+    SiteCategory category,
+    String serverUrl,
+    ThemeData theme,
+  ) {
+    final logoUrl = category.uploadedLogoUrl ?? category.uploadedLogoDarkUrl;
+    if (logoUrl != null && logoUrl.isNotEmpty) {
+      final resolved =
+          logoUrl.startsWith('http') ? logoUrl : '$serverUrl$logoUrl';
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: CachedNetworkImage(
+          imageUrl: resolved,
+          width: 32,
+          height: 32,
+          fit: BoxFit.contain,
+          errorWidget: (_, __, ___) =>
+              _categoryFallbackIcon(category, serverUrl),
+        ),
+      );
+    }
+    return _categoryFallbackIcon(category, serverUrl);
+  }
+
+  static Widget _categoryFallbackIcon(
+    SiteCategory category,
+    String serverUrl,
+  ) {
+    if (category.emoji != null && category.emoji!.isNotEmpty) {
+      final shortcode = category.emoji!.replaceAll(':', '');
+      return CachedNetworkImage(
+        imageUrl: '$serverUrl/images/emoji/twitter/$shortcode.png',
+        width: 24,
+        height: 24,
+        fit: BoxFit.contain,
+        errorWidget: (_, __, ___) => Text(
+          category.name.isNotEmpty ? category.name[0].toUpperCase() : '?',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+      );
     }
     if (category.icon != null) {
       return const Icon(Icons.folder_rounded, size: 18, color: Colors.white);
@@ -232,6 +287,57 @@ class _TopicCountBadge extends StatelessWidget {
           color: theme.colorScheme.onSurfaceVariant,
         ),
       ),
+    );
+  }
+}
+
+class _AllTopicsItem extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _AllTopicsItem({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.forum_rounded, size: 18, color: Colors.white),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'All Topics',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const Divider(height: 1, indent: 16, endIndent: 16),
+      ],
     );
   }
 }

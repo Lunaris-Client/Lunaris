@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -240,6 +241,9 @@ class _DiscourseEmojiPickerState extends State<DiscourseEmojiPicker> {
   String _searchQuery = '';
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
+  List<String>? _cachedEmojis;
+  int _lastCategory = -1;
+  String _lastQuery = '';
 
   @override
   void dispose() {
@@ -249,14 +253,22 @@ class _DiscourseEmojiPickerState extends State<DiscourseEmojiPicker> {
   }
 
   List<String> get _filteredEmojis {
+    if (_selectedCategory == _lastCategory && _searchQuery == _lastQuery && _cachedEmojis != null) {
+      return _cachedEmojis!;
+    }
+    _lastCategory = _selectedCategory;
+    _lastQuery = _searchQuery;
+
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
-      return emojiCategories
+      _cachedEmojis = emojiCategories
           .expand((c) => c.shortcodes)
           .where((s) => s.contains(q))
           .toList();
+    } else {
+      _cachedEmojis = emojiCategories[_selectedCategory].shortcodes;
     }
-    return emojiCategories[_selectedCategory].shortcodes;
+    return _cachedEmojis!;
   }
 
   @override
@@ -350,39 +362,68 @@ class _DiscourseEmojiPickerState extends State<DiscourseEmojiPicker> {
                 mainAxisSpacing: 2,
                 crossAxisSpacing: 2,
               ),
+              addAutomaticKeepAlives: false,
+              addRepaintBoundaries: false,
               itemCount: emojis.length,
               itemBuilder: (context, index) {
                 final shortcode = emojis[index];
-                return InkWell(
-                  borderRadius: BorderRadius.circular(6),
+                final url = '${widget.serverUrl}/images/emoji/twitter/$shortcode.png';
+                return _EmojiCell(
+                  shortcode: shortcode,
+                  url: url,
                   onTap: () {
                     HapticFeedback.selectionClick();
                     widget.onEmojiSelected(shortcode);
                   },
-                  child: Tooltip(
-                    message: ':$shortcode:',
-                    waitDuration: const Duration(milliseconds: 500),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Image.network(
-                        '${widget.serverUrl}/images/emoji/twitter/$shortcode.png',
-                        width: 28,
-                        height: 28,
-                        errorBuilder: (_, __, ___) => Center(
-                          child: Text(
-                            ':$shortcode:',
-                            style: const TextStyle(fontSize: 10),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
                 );
               },
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EmojiCell extends StatelessWidget {
+  final String shortcode;
+  final String url;
+  final VoidCallback onTap;
+
+  const _EmojiCell({
+    required this.shortcode,
+    required this.url,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(6),
+      onTap: onTap,
+      child: Tooltip(
+        message: ':$shortcode:',
+        waitDuration: const Duration(milliseconds: 500),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: CachedNetworkImage(
+            imageUrl: url,
+            width: 28,
+            height: 28,
+            memCacheWidth: 56,
+            memCacheHeight: 56,
+            fadeInDuration: Duration.zero,
+            fadeOutDuration: Duration.zero,
+            placeholder: (_, __) => const SizedBox.shrink(),
+            errorWidget: (_, __, ___) => Center(
+              child: Text(
+                ':$shortcode:',
+                style: const TextStyle(fontSize: 10),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -16,59 +16,95 @@ class FeedFilterBar extends StatelessWidget {
     required this.periods,
   });
 
-  static const _filters = <(String, String, IconData)>[
-    ('latest', 'Latest', Icons.schedule_rounded),
-    ('new', 'New', Icons.fiber_new_rounded),
-    ('unread', 'Unread', Icons.mark_email_unread_rounded),
-    ('top', 'Top', Icons.trending_up_rounded),
-    ('hot', 'Hot', Icons.local_fire_department_rounded),
+  static const _filters = <(String, String)>[
+    ('latest', 'Latest'),
+    ('new', 'New'),
+    ('unread', 'Unread'),
+    ('top', 'Top'),
+    ('hot', 'Hot'),
   ];
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final showPeriods = activeFilter == 'top' && periods.isNotEmpty;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final (key, label, icon) in _filters)
-                ChoiceChip(
-                  selected: activeFilter == key,
-                  label: Text(label),
-                  avatar: Icon(icon, size: 16),
-                  onSelected: (_) => onFilterChanged(key),
-                  showCheckmark: false,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity.compact,
+        SizedBox(
+          height: 36,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _filters.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 4),
+            itemBuilder: (context, index) {
+              final (key, label) = _filters[index];
+              final selected = activeFilter == key;
+              return Center(
+                child: Material(
+                  color: selected
+                      ? theme.colorScheme.onSurface.withValues(alpha: 0.08)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  child: InkWell(
+                    onTap: () => onFilterChanged(key),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      child: Text(
+                        label,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: selected
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.onSurfaceVariant,
+                          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-            ],
+              );
+            },
           ),
         ),
-        if (activeFilter == 'top' && periods.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(left: 12, right: 12, bottom: 6),
-            child: Wrap(
-              spacing: 4,
-              runSpacing: 4,
-              children: [
-                for (final period in periods)
-                  ChoiceChip(
-                    selected: activePeriod == period,
-                    label: Text(_periodLabel(period)),
-                    onSelected: (_) => onPeriodChanged(period),
-                    showCheckmark: false,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                    labelStyle: theme.textTheme.labelSmall,
+        if (showPeriods)
+          SizedBox(
+            height: 30,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: periods.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 2),
+              itemBuilder: (context, index) {
+                final period = periods[index];
+                final selected = activePeriod == period;
+                return Center(
+                  child: Material(
+                    color: selected
+                        ? theme.colorScheme.onSurface.withValues(alpha: 0.08)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      onTap: () => onPeriodChanged(period),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        child: Text(
+                          _periodLabel(period),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: selected
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.85),
+                            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-              ],
+                );
+              },
             ),
           ),
         const Divider(height: 1),
@@ -83,7 +119,7 @@ class FeedFilterBar extends StatelessWidget {
       'monthly' => 'Month',
       'quarterly' => 'Quarter',
       'yearly' => 'Year',
-      'all' => 'All Time',
+      'all' => 'All',
       _ => period[0].toUpperCase() + period.substring(1),
     };
   }

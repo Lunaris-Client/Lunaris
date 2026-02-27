@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:lunaris/core/models/topic.dart';
 import 'package:lunaris/core/models/site_category.dart';
@@ -36,85 +35,21 @@ class TopicCard extends StatelessWidget {
             ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
             : null,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(theme),
-              const SizedBox(height: 6),
               _buildTitle(theme),
+              const SizedBox(height: 6),
               if (topic.excerpt != null && topic.excerpt!.isNotEmpty) ...[
-                const SizedBox(height: 4),
                 _buildExcerpt(theme),
-              ],
-              if (topic.tags.isNotEmpty) ...[
                 const SizedBox(height: 8),
-                _buildTags(theme),
               ],
-              const SizedBox(height: 10),
-              _buildFooter(theme),
+              _buildMeta(theme),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildHeader(ThemeData theme) {
-    return Row(
-      children: [
-        if (category != null) ...[
-          _CategoryBadge(category: category!),
-          const SizedBox(width: 8),
-        ],
-        if (topic.pinned) ...[
-          Icon(
-            Icons.push_pin_rounded,
-            size: 14,
-            color: theme.colorScheme.primary,
-          ),
-          const SizedBox(width: 4),
-        ],
-        if (topic.closed) ...[
-          Icon(
-            Icons.lock_rounded,
-            size: 14,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 4),
-        ],
-        if (topic.archived) ...[
-          Icon(
-            Icons.inventory_2_rounded,
-            size: 14,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 4),
-        ],
-        if (topic.hasAcceptedAnswer) ...[
-          const Icon(
-            Icons.check_circle_rounded,
-            size: 14,
-            color: Colors.green,
-          ),
-          const SizedBox(width: 4),
-        ],
-        if (topic.eventStartsAt != null) ...[
-          Icon(
-            Icons.event_rounded,
-            size: 14,
-            color: theme.colorScheme.tertiary,
-          ),
-          const SizedBox(width: 4),
-        ],
-        const Spacer(),
-        Text(
-          timeago.format(topic.bumpedAt),
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
     );
   }
 
@@ -126,8 +61,8 @@ class TopicCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 6, right: 8),
             child: Container(
-              width: 8,
-              height: 8,
+              width: 7,
+              height: 7,
               decoration: BoxDecoration(
                 color: theme.colorScheme.primary,
                 shape: BoxShape.circle,
@@ -137,13 +72,23 @@ class TopicCard extends StatelessWidget {
         Expanded(
           child: Text(
             topic.title,
-            style: theme.textTheme.titleSmall?.copyWith(
+            style: theme.textTheme.bodyLarge?.copyWith(
               fontWeight: _hasUnread ? FontWeight.w600 : FontWeight.w500,
+              height: 1.3,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
         ),
+        if (topic.pinned)
+          Padding(
+            padding: const EdgeInsets.only(left: 8, top: 2),
+            child: Icon(
+              Icons.push_pin_rounded,
+              size: 14,
+              color: theme.colorScheme.primary.withValues(alpha: 0.7),
+            ),
+          ),
       ],
     );
   }
@@ -155,157 +100,57 @@ class TopicCard extends StatelessWidget {
     return Text(
       cleaned,
       style: theme.textTheme.bodySmall?.copyWith(
-        color: theme.colorScheme.onSurfaceVariant,
+        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+        height: 1.4,
       ),
-      maxLines: 2,
+      maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
   }
 
-  Widget _buildTags(ThemeData theme) {
-    return Wrap(
-      spacing: 6,
-      runSpacing: 4,
-      children:
-          topic.tags.take(5).map((tag) {
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                tag.name,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            );
-          }).toList(),
+  Widget _buildMeta(ThemeData theme) {
+    final metaStyle = theme.textTheme.labelSmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
     );
-  }
 
-  Widget _buildFooter(ThemeData theme) {
-    final posterAvatars =
-        topic.posters.where((p) => p.user != null).take(5).toList();
+    final parts = <String>[];
+    if (category != null) parts.add(category!.name);
+    parts.add(timeago.format(topic.bumpedAt, locale: 'en_short'));
+    if (topic.replyCount > 0) parts.add('${formatCount(topic.replyCount)} replies');
+    if (topic.likeCount > 0) parts.add('${formatCount(topic.likeCount)} likes');
+    if (topic.hasAcceptedAnswer) parts.add('solved');
+    if (topic.closed && !topic.archived) parts.add('closed');
 
     return Row(
       children: [
-        if (posterAvatars.isNotEmpty) ...[
-          _AvatarRow(posters: posterAvatars, serverUrl: serverUrl),
-          const SizedBox(width: 12),
+        if (category != null) ...[
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: parseHexColor(category!.color),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 5),
         ],
-        _StatChip(
-          icon: Icons.chat_bubble_outline_rounded,
-          value: topic.replyCount,
+        Expanded(
+          child: Text(
+            category != null ? parts.skip(1).join(' · ') : parts.join(' · '),
+            style: metaStyle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
-        const SizedBox(width: 12),
-        _StatChip(icon: Icons.visibility_outlined, value: topic.views),
-        if (topic.likeCount > 0) ...[
-          const SizedBox(width: 12),
-          _StatChip(
-            icon: Icons.favorite_border_rounded,
-            value: topic.likeCount,
+        if (topic.tags.isNotEmpty) ...[
+          const SizedBox(width: 8),
+          Text(
+            topic.tags.take(2).map((t) => t.name).join(', '),
+            style: metaStyle?.copyWith(fontStyle: FontStyle.italic),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
-        if (topic.voteCount > 0) ...[
-          const SizedBox(width: 12),
-          _StatChip(
-            icon: topic.userVoted
-                ? Icons.arrow_upward_rounded
-                : Icons.arrow_upward_outlined,
-            value: topic.voteCount,
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _CategoryBadge extends StatelessWidget {
-  final SiteCategory category;
-
-  const _CategoryBadge({required this.category});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = parseHexColor(category.color);
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          category.name,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AvatarRow extends StatelessWidget {
-  final List<TopicPoster> posters;
-  final String serverUrl;
-
-  const _AvatarRow({required this.posters, required this.serverUrl});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 24,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children:
-            posters.map((poster) {
-              final template = poster.user!.avatarTemplate;
-              final url = resolveAvatarUrl(serverUrl, template, size: 48);
-
-              return Padding(
-                padding: const EdgeInsets.only(right: 2),
-                child: CircleAvatar(
-                  radius: 12,
-                  backgroundImage: CachedNetworkImageProvider(url),
-                ),
-              );
-            }).toList(),
-      ),
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  final IconData icon;
-  final int value;
-
-  const _StatChip({required this.icon, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: theme.colorScheme.onSurfaceVariant),
-        const SizedBox(width: 3),
-        Text(
-          formatCount(value),
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
       ],
     );
   }

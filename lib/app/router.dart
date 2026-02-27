@@ -7,6 +7,7 @@ import 'package:lunaris/features/server/add_server_screen.dart';
 import 'package:lunaris/features/auth/login_screen.dart';
 import 'package:lunaris/features/home/home_shell.dart';
 import 'package:lunaris/features/profile/user_profile_screen.dart';
+import 'package:lunaris/features/settings/settings_screen.dart';
 import 'package:lunaris/features/settings/notification_settings_screen.dart';
 import 'package:lunaris/features/settings/theme_settings_screen.dart';
 import 'package:lunaris/features/settings/cache_settings_screen.dart';
@@ -17,11 +18,13 @@ class TopicRouteExtra {
   final String serverUrl;
   final String? topicTitle;
   final Map<int, SiteCategory>? categoriesById;
+  final int? initialPostNumber;
 
   const TopicRouteExtra({
     required this.serverUrl,
     this.topicTitle,
     this.categoriesById,
+    this.initialPostNumber,
   });
 }
 
@@ -49,6 +52,10 @@ GoRouter createRouter(String initialLocation) {
       GoRoute(path: '/home', builder: (context, state) => const HomeShell()),
       GoRoute(
         path: '/settings',
+        builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/notifications',
         builder: (context, state) => const NotificationSettingsScreen(),
       ),
       GoRoute(
@@ -78,6 +85,7 @@ GoRouter createRouter(String initialLocation) {
             topicId: topicId,
             topicTitle: extra.topicTitle,
             categoriesById: extra.categoriesById,
+            initialPostNumber: extra.initialPostNumber,
           );
         },
       ),

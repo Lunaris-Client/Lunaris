@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lunaris/core/models/chat_channel.dart';
 import 'package:lunaris/core/providers/chat_provider.dart';
@@ -12,7 +13,9 @@ import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/ui/widgets/emoji_picker.dart';
 import 'package:lunaris/core/services/frequent_emoji_service.dart';
 import 'package:lunaris/core/utils/color_utils.dart';
+import 'package:lunaris/app/router.dart';
 import 'package:lunaris/features/topic/cooked_html_renderer.dart';
+import 'package:intl/intl.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 final bool _isDesktop = () {
@@ -52,6 +55,11 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
   bool _isTyping = false;
   final String _clientId = 'lunaris_${DateTime.now().millisecondsSinceEpoch}';
 
+  late final _messageBusNotifier = ref.read(messageBusProvider.notifier);
+  late final _authService = ref.read(authServiceProvider);
+  late final _apiClient = ref.read(discourseApiClientProvider);
+  late final _frequentEmojiService = ref.read(frequentEmojiServiceProvider);
+
   ChatMessagesParams get _params => ChatMessagesParams(
         serverUrl: widget.serverUrl,
         channelId: widget.channel.id,
@@ -77,22 +85,18 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
           .read(chatMessagesProvider(_params).notifier)
           .handleChatChannelMessage(data);
     });
-    ref
-        .read(messageBusProvider.notifier)
-        .subscribeToChatChannel(widget.channel.id);
+    _messageBusNotifier.subscribeToChatChannel(widget.channel.id);
   }
 
   @override
   void dispose() {
-    ref
-        .read(messageBusProvider.notifier)
-        .unsubscribeFromChatChannel(widget.channel.id);
+    _typingTimer?.cancel();
+    _presencePollTimer?.cancel();
+    _messageBusNotifier.unsubscribeFromChatChannel(widget.channel.id);
     _scrollController.dispose();
     _textController.removeListener(_onTextChanged);
     _textController.dispose();
     _focusNode.dispose();
-    _typingTimer?.cancel();
-    _presencePollTimer?.cancel();
     _leavePresence();
     super.dispose();
   }
@@ -112,9 +116,9 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
   Future<void> _joinPresence() async {
     try {
       final apiKey =
-          await ref.read(authServiceProvider).loadApiKey(widget.serverUrl);
+          await _authService.loadApiKey(widget.serverUrl);
       if (apiKey == null) return;
-      await ref.read(discourseApiClientProvider).updatePresence(
+      await _apiClient.updatePresence(
             widget.serverUrl,
             apiKey,
             clientId: _clientId,
@@ -126,9 +130,9 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
   Future<void> _leavePresence() async {
     try {
       final apiKey =
-          await ref.read(authServiceProvider).loadApiKey(widget.serverUrl);
+          await _authService.loadApiKey(widget.serverUrl);
       if (apiKey == null) return;
-      await ref.read(discourseApiClientProvider).updatePresence(
+      await _apiClient.updatePresence(
             widget.serverUrl,
             apiKey,
             clientId: _clientId,
@@ -138,16 +142,18 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
   }
 
   Future<void> _pollTypingPresence() async {
+    if (!mounted) return;
     try {
       final apiKey =
-          await ref.read(authServiceProvider).loadApiKey(widget.serverUrl);
-      if (apiKey == null) return;
+          await _authService.loadApiKey(widget.serverUrl);
+      if (apiKey == null || !mounted) return;
       final account = ref.read(activeServerProvider);
-      final data = await ref.read(discourseApiClientProvider).getPresence(
+      final data = await _apiClient.getPresence(
             widget.serverUrl,
             apiKey,
             channels: [_presenceChannel],
           );
+      if (!mounted) return;
       final channelData = data[_presenceChannel] as Map<String, dynamic>?;
       final users = channelData?['users'] as List<dynamic>? ?? [];
       final names = users
@@ -229,7 +235,7 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
 
     try {
       final apiKey =
-          await ref.read(authServiceProvider).loadApiKey(widget.serverUrl);
+          await _authService.loadApiKey(widget.serverUrl);
       if (apiKey == null) return;
 
       if (mounted) {
@@ -238,7 +244,7 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
         );
       }
 
-      final result = await ref.read(discourseApiClientProvider).uploadFile(
+      final result = await _apiClient.uploadFile(
             widget.serverUrl,
             apiKey,
             filePath: picked.path,
@@ -359,9 +365,9 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
   Future<void> _bookmarkMessage(ChatMessage msg) async {
     try {
       final apiKey =
-          await ref.read(authServiceProvider).loadApiKey(widget.serverUrl);
+          await _authService.loadApiKey(widget.serverUrl);
       if (apiKey == null) return;
-      await ref.read(discourseApiClientProvider).bookmarkChatMessage(
+      await _apiClient.bookmarkChatMessage(
             widget.serverUrl,
             apiKey,
             messageId: msg.id,
@@ -424,9 +430,9 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
     if (reason == null) return;
     try {
       final apiKey =
-          await ref.read(authServiceProvider).loadApiKey(widget.serverUrl);
-      if (apiKey == null) return;
-      await ref.read(discourseApiClientProvider).flagChatMessage(
+          await _authService.loadApiKey(widget.serverUrl);
+      if (apiKey == null || !mounted) return;
+      await _apiClient.flagChatMessage(
             widget.serverUrl,
             apiKey,
             widget.channel.id,
@@ -455,12 +461,12 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
     );
     if (emoji == null) return;
     HapticFeedback.mediumImpact();
-    ref.read(frequentEmojiServiceProvider).recordUsage(emoji);
+    _frequentEmojiService.recordUsage(emoji);
     try {
       final apiKey =
-          await ref.read(authServiceProvider).loadApiKey(widget.serverUrl);
-      if (apiKey == null) return;
-      await ref.read(discourseApiClientProvider).reactChatMessage(
+          await _authService.loadApiKey(widget.serverUrl);
+      if (apiKey == null || !mounted) return;
+      await _apiClient.reactChatMessage(
             widget.serverUrl,
             apiKey,
             widget.channel.id,
@@ -468,6 +474,7 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
             emoji: emoji,
             action: 'add',
           );
+      if (!mounted) return;
       ref.read(chatMessagesProvider(_params).notifier).refresh();
     } catch (e) {
       if (mounted) {
@@ -480,12 +487,12 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
 
   Future<void> _toggleReaction(ChatMessage msg, String emoji, bool alreadyReacted) async {
     HapticFeedback.mediumImpact();
-    if (!alreadyReacted) ref.read(frequentEmojiServiceProvider).recordUsage(emoji);
+    if (!alreadyReacted) _frequentEmojiService.recordUsage(emoji);
     try {
       final apiKey =
-          await ref.read(authServiceProvider).loadApiKey(widget.serverUrl);
-      if (apiKey == null) return;
-      await ref.read(discourseApiClientProvider).reactChatMessage(
+          await _authService.loadApiKey(widget.serverUrl);
+      if (apiKey == null || !mounted) return;
+      await _apiClient.reactChatMessage(
             widget.serverUrl,
             apiKey,
             widget.channel.id,
@@ -493,6 +500,7 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
             emoji: emoji,
             action: alreadyReacted ? 'remove' : 'add',
           );
+      if (!mounted) return;
       ref.read(chatMessagesProvider(_params).notifier).refresh();
     } catch (e) {
       if (mounted) {
@@ -658,33 +666,75 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
         final msgIndex = state.isLoadingMore ? index - 1 : index;
         final msg = state.messages[msgIndex];
         final prevMsg = msgIndex > 0 ? state.messages[msgIndex - 1] : null;
-        final showHeader = prevMsg == null ||
+        final isReply = msg.inReplyToId != null;
+        final showHeader = isReply ||
+            prevMsg == null ||
             prevMsg.username != msg.username ||
             msg.createdAt.difference(prevMsg.createdAt).inMinutes > 5;
+
+        final showDateSeparator = prevMsg == null ||
+            !_isSameDay(prevMsg.createdAt, msg.createdAt);
+
+        String? replyToUsername;
+        String? replyToExcerpt;
+        String? replyToAvatarTemplate;
+        if (msg.inReplyToId != null) {
+          // Prefer data parsed from the API's in_reply_to object
+          replyToUsername = msg.replyToUsername;
+          replyToExcerpt = msg.replyToExcerpt;
+          replyToAvatarTemplate = msg.replyToAvatarTemplate;
+          // Fall back to lookup in loaded messages
+          if (replyToUsername == null) {
+            final replyTarget = state.messages
+                .where((m) => m.id == msg.inReplyToId)
+                .firstOrNull;
+            if (replyTarget != null) {
+              replyToUsername = replyTarget.username;
+              replyToExcerpt = replyTarget.excerpt ?? replyTarget.message;
+              replyToAvatarTemplate = replyTarget.avatarTemplate;
+            }
+          }
+          // Last resort: show generic indicator
+          replyToUsername ??= 'someone';
+        }
 
         final account = ref.read(activeServerProvider);
         final isOwnMessage = msg.userId != null &&
             account?.userId != null &&
             msg.userId == account!.userId;
 
-        final frequentEmojis = ref.read(frequentEmojiServiceProvider).getTopEmojis(6);
+        final frequentEmojis = _frequentEmojiService.getTopEmojis(6);
 
-        return _ChatMessageBubble(
-          message: msg,
-          serverUrl: widget.serverUrl,
-          showHeader: showHeader,
-          isOwnMessage: isOwnMessage,
-          frequentEmojis: frequentEmojis,
-          onReply: () => _setReply(msg),
-          onThreadTap: msg.threadId != null ? () => _openThread(msg) : null,
-          onEdit: isOwnMessage ? () => _editMessage(msg) : null,
-          onDelete: isOwnMessage ? () => _deleteMessage(msg) : null,
-          onBookmark: () => _bookmarkMessage(msg),
-          onCopyLink: () => _copyMessageLink(msg),
-          onSelect: () => _selectMessageText(msg),
-          onFlag: !isOwnMessage ? () => _flagMessage(msg) : null,
-          onReact: (position) => _reactToMessage(msg, position),
-          onReactionTap: (emoji, reacted) => _toggleReaction(msg, emoji, reacted),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (showDateSeparator)
+              _DateSeparator(date: msg.createdAt),
+            _ChatMessageBubble(
+              message: msg,
+              serverUrl: widget.serverUrl,
+              showHeader: showHeader,
+              isOwnMessage: isOwnMessage,
+              replyToUsername: replyToUsername,
+              replyToExcerpt: replyToExcerpt,
+              replyToAvatarTemplate: replyToAvatarTemplate,
+              frequentEmojis: frequentEmojis,
+              onReply: () => _setReply(msg),
+              onThreadTap: msg.threadId != null ? () => _openThread(msg) : null,
+              onEdit: isOwnMessage ? () => _editMessage(msg) : null,
+              onDelete: isOwnMessage ? () => _deleteMessage(msg) : null,
+              onBookmark: () => _bookmarkMessage(msg),
+              onCopyLink: () => _copyMessageLink(msg),
+              onSelect: () => _selectMessageText(msg),
+              onFlag: !isOwnMessage ? () => _flagMessage(msg) : null,
+              onReact: (position) => _reactToMessage(msg, position),
+              onReactionTap: (emoji, reacted) => _toggleReaction(msg, emoji, reacted),
+              onUserTap: (username) => context.push(
+                '/user/$username',
+                extra: UserProfileRouteExtra(serverUrl: widget.serverUrl),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -696,6 +746,9 @@ class _ChatMessageBubble extends StatefulWidget {
   final String serverUrl;
   final bool showHeader;
   final bool isOwnMessage;
+  final String? replyToUsername;
+  final String? replyToExcerpt;
+  final String? replyToAvatarTemplate;
   final VoidCallback? onReply;
   final VoidCallback? onThreadTap;
   final VoidCallback? onEdit;
@@ -707,12 +760,16 @@ class _ChatMessageBubble extends StatefulWidget {
   final void Function(Offset? position)? onReact;
   final void Function(String emoji, bool alreadyReacted)? onReactionTap;
   final List<String> frequentEmojis;
+  final ValueChanged<String>? onUserTap;
 
   const _ChatMessageBubble({
     required this.message,
     required this.serverUrl,
     required this.showHeader,
     this.isOwnMessage = false,
+    this.replyToUsername,
+    this.replyToExcerpt,
+    this.replyToAvatarTemplate,
     this.frequentEmojis = const [],
     this.onReply,
     this.onThreadTap,
@@ -724,6 +781,7 @@ class _ChatMessageBubble extends StatefulWidget {
     this.onFlag,
     this.onReact,
     this.onReactionTap,
+    this.onUserTap,
   });
 
   @override
@@ -863,7 +921,7 @@ class _ChatMessageBubbleState extends State<_ChatMessageBubble> {
 
     if (msg.deleted) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
+        padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 44),
         child: Text(
           '[message deleted]',
           style: theme.textTheme.bodySmall?.copyWith(
@@ -874,42 +932,73 @@ class _ChatMessageBubbleState extends State<_ChatMessageBubble> {
       );
     }
 
+    final hasReplyContext = widget.replyToUsername != null;
+
     Widget content = Padding(
-      padding: EdgeInsets.only(top: widget.showHeader ? 12 : 2, bottom: 2),
+      padding: EdgeInsets.only(
+        top: widget.showHeader ? 10 : 1,
+        bottom: 1,
+        left: 4,
+        right: 4,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (widget.showHeader)
-            _buildAvatar(theme)
+            GestureDetector(
+              onTap: () {
+                final username = widget.message.username;
+                if (username != null) widget.onUserTap?.call(username);
+              },
+              child: _buildAvatar(theme),
+            )
           else
             const SizedBox(width: 36),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (widget.showHeader)
-                  Row(
-                    children: [
-                      Text(
-                        msg.username ?? 'Unknown',
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () {
+                            final username = widget.message.username;
+                            if (username != null) widget.onUserTap?.call(username);
+                          },
+                          child: Text(
+                            msg.username ?? 'Unknown',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        timeago.format(msg.createdAt),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                        const SizedBox(width: 6),
+                        Text(
+                          timeago.format(msg.createdAt),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                            fontSize: 11,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+                if (hasReplyContext)
+                  _InlineReplyIndicator(
+                    username: widget.replyToUsername!,
+                    excerpt: widget.replyToExcerpt,
+                    avatarTemplate: widget.replyToAvatarTemplate,
+                    serverUrl: widget.serverUrl,
                   ),
                 if (msg.cooked != null && msg.cooked!.isNotEmpty)
                   CookedHtmlRenderer(
                     html: msg.cooked!,
                     serverUrl: widget.serverUrl,
+                    onMentionTap: (username) => widget.onUserTap?.call(username),
                   )
                 else
                   _EmojiRichText(
@@ -922,54 +1011,67 @@ class _ChatMessageBubbleState extends State<_ChatMessageBubble> {
                     padding: const EdgeInsets.only(top: 4),
                     child: Wrap(
                       spacing: 4,
-                      children: msg.reactions
-                          .map((r) {
-                            final userNames = r.users.map((u) => u.username).toList();
-                            final tooltipText = userNames.isNotEmpty
-                                ? userNames.join(', ')
-                                : '${r.count} reaction${r.count != 1 ? 's' : ''}';
-                            return Tooltip(
-                              message: tooltipText,
-                              preferBelow: false,
-                              waitDuration: const Duration(milliseconds: 300),
-                              child: GestureDetector(
-                                onTap: () => widget.onReactionTap?.call(r.emoji, r.reacted),
-                                onLongPress: () {
-                                  HapticFeedback.mediumImpact();
-                                  showDialog(
-                                    context: context,
-                                    builder: (_) => _ReactionUsersDialog(
-                                      emoji: r.emoji,
-                                      users: userNames,
-                                      serverUrl: widget.serverUrl,
-                                      count: r.count,
-                                    ),
-                                  );
-                                },
-                                child: Chip(
-                                  avatar: Image.network(
-                                    '${widget.serverUrl}/images/emoji/twitter/${r.emoji}.png',
-                                    width: 16,
-                                    height: 16,
-                                    errorBuilder: (_, __, ___) =>
-                                        Text(r.emoji, style: const TextStyle(fontSize: 14)),
-                                  ),
-                                  label: Text('${r.count}'),
-                                  visualDensity: VisualDensity.compact,
-                                  materialTapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                  padding: EdgeInsets.zero,
-                                  labelPadding:
-                                      const EdgeInsets.only(right: 4),
-                                  side: r.reacted
-                                      ? BorderSide(
-                                          color: theme.colorScheme.primary)
-                                      : null,
+                      runSpacing: 4,
+                      children: msg.reactions.map((r) {
+                        final userNames = r.users.map((u) => u.username).toList();
+                        final tooltipText = userNames.isNotEmpty
+                            ? userNames.join(', ')
+                            : '${r.count} reaction${r.count != 1 ? 's' : ''}';
+                        return Tooltip(
+                          message: tooltipText,
+                          preferBelow: false,
+                          waitDuration: const Duration(milliseconds: 300),
+                          child: GestureDetector(
+                            onTap: () => widget.onReactionTap?.call(r.emoji, r.reacted),
+                            onLongPress: () {
+                              HapticFeedback.mediumImpact();
+                              showDialog(
+                                context: context,
+                                builder: (_) => _ReactionUsersDialog(
+                                  emoji: r.emoji,
+                                  users: userNames,
+                                  serverUrl: widget.serverUrl,
+                                  count: r.count,
                                 ),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                color: r.reacted
+                                    ? theme.colorScheme.primaryContainer.withValues(alpha: 0.5)
+                                    : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                                border: r.reacted
+                                    ? Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.4))
+                                    : null,
                               ),
-                            );
-                          })
-                          .toList(),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Image.network(
+                                    '${widget.serverUrl}/images/emoji/twitter/${r.emoji}.png',
+                                    width: 14,
+                                    height: 14,
+                                    errorBuilder: (_, __, ___) =>
+                                        Text(r.emoji, style: const TextStyle(fontSize: 12)),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '${r.count}',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      fontWeight: r.reacted ? FontWeight.w600 : null,
+                                      color: r.reacted
+                                          ? theme.colorScheme.primary
+                                          : theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ),
                 if (widget.onThreadTap != null)
@@ -1001,7 +1103,6 @@ class _ChatMessageBubbleState extends State<_ChatMessageBubble> {
               ],
             ),
           ),
-
         ],
       ),
     );
@@ -1100,6 +1201,152 @@ class _ChatMessageBubbleState extends State<_ChatMessageBubble> {
       child: Text(
         (widget.message.username ?? '?')[0].toUpperCase(),
         style: TextStyle(color: theme.colorScheme.onPrimaryContainer),
+      ),
+    );
+  }
+}
+
+bool _isSameDay(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
+
+class _DateSeparator extends StatelessWidget {
+  final DateTime date;
+
+  const _DateSeparator({required this.date});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final now = DateTime.now();
+    String label;
+    if (_isSameDay(date, now)) {
+      label = 'Today';
+    } else if (_isSameDay(date, now.subtract(const Duration(days: 1)))) {
+      label = 'Yesterday';
+    } else if (now.difference(date).inDays < 7) {
+      label = DateFormat.EEEE().format(date);
+    } else {
+      label = DateFormat.yMMMd().format(date);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Row(
+        children: [
+          Expanded(child: Divider(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4))),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              label,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+          Expanded(child: Divider(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4))),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineReplyIndicator extends StatelessWidget {
+  final String username;
+  final String? excerpt;
+  final String? avatarTemplate;
+  final String serverUrl;
+
+  const _InlineReplyIndicator({
+    required this.username,
+    required this.serverUrl,
+    this.excerpt,
+    this.avatarTemplate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Strip HTML tags from excerpt for clean display
+    String? cleanExcerpt = excerpt;
+    if (cleanExcerpt != null) {
+      cleanExcerpt = cleanExcerpt.replaceAll(RegExp(r'<[^>]*>'), '');
+      if (cleanExcerpt.length > 80) {
+        cleanExcerpt = '${cleanExcerpt.substring(0, 80)}…';
+      }
+    }
+
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.04);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.25)
+        : Colors.black.withValues(alpha: 0.15);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4, top: 2),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: borderColor, width: 0.5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.shortcut_rounded,
+              size: 14,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+            ),
+            const SizedBox(width: 6),
+            if (avatarTemplate != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 5),
+                child: CircleAvatar(
+                  radius: 8,
+                  backgroundImage: NetworkImage(
+                    resolveAvatarUrl(serverUrl, avatarTemplate!, size: 20),
+                  ),
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                ),
+              ),
+            Text(
+              username,
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+            if (cleanExcerpt != null && cleanExcerpt.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                child: Text(
+                  '·',
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              Flexible(
+                child: Text(
+                  cleanExcerpt,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+                    fontWeight: FontWeight.w400,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -1592,14 +1839,53 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
       itemBuilder: (context, index) {
         final msg = state.messages[index];
         final prevMsg = index > 0 ? state.messages[index - 1] : null;
-        final showHeader = prevMsg == null ||
+        final isReply = msg.inReplyToId != null;
+        final showHeader = isReply ||
+            prevMsg == null ||
             prevMsg.username != msg.username ||
             msg.createdAt.difference(prevMsg.createdAt).inMinutes > 5;
 
-        return _ChatMessageBubble(
-          message: msg,
-          serverUrl: widget.serverUrl,
-          showHeader: showHeader,
+        final showDateSeparator = prevMsg == null ||
+            !_isSameDay(prevMsg.createdAt, msg.createdAt);
+
+        String? replyToUsername;
+        String? replyToExcerpt;
+        String? replyToAvatarTemplate;
+        if (msg.inReplyToId != null) {
+          replyToUsername = msg.replyToUsername;
+          replyToExcerpt = msg.replyToExcerpt;
+          replyToAvatarTemplate = msg.replyToAvatarTemplate;
+          if (replyToUsername == null) {
+            final replyTarget = state.messages
+                .where((m) => m.id == msg.inReplyToId)
+                .firstOrNull;
+            if (replyTarget != null) {
+              replyToUsername = replyTarget.username;
+              replyToExcerpt = replyTarget.excerpt ?? replyTarget.message;
+              replyToAvatarTemplate = replyTarget.avatarTemplate;
+            }
+          }
+          replyToUsername ??= 'someone';
+        }
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (showDateSeparator)
+              _DateSeparator(date: msg.createdAt),
+            _ChatMessageBubble(
+              message: msg,
+              serverUrl: widget.serverUrl,
+              showHeader: showHeader,
+              replyToUsername: replyToUsername,
+              replyToExcerpt: replyToExcerpt,
+              replyToAvatarTemplate: replyToAvatarTemplate,
+              onUserTap: (username) => context.push(
+                '/user/$username',
+                extra: UserProfileRouteExtra(serverUrl: widget.serverUrl),
+              ),
+            ),
+          ],
         );
       },
     );

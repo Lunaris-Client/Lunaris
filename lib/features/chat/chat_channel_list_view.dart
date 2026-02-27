@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lunaris/core/models/chat_channel.dart';
@@ -102,6 +103,7 @@ class ChatChannelListView extends ConsumerWidget {
               for (final channel in publicChannels)
                 _ChannelTile(
                   channel: channel,
+                  serverUrl: serverUrl,
                   isSelected: selectedChannelId == channel.id,
                   onTap: () => onChannelSelected?.call(channel),
                 ),
@@ -111,6 +113,7 @@ class ChatChannelListView extends ConsumerWidget {
               for (final dm in dms)
                 _ChannelTile(
                   channel: dm,
+                  serverUrl: serverUrl,
                   isSelected: selectedChannelId == dm.id,
                   onTap: () => onChannelSelected?.call(dm),
                 ),
@@ -171,11 +174,13 @@ class _SectionHeader extends StatelessWidget {
 
 class _ChannelTile extends StatelessWidget {
   final ChatChannel channel;
+  final String serverUrl;
   final bool isSelected;
   final VoidCallback onTap;
 
   const _ChannelTile({
     required this.channel,
+    required this.serverUrl,
     required this.isSelected,
     required this.onTap,
   });
@@ -187,20 +192,7 @@ class _ChannelTile extends StatelessWidget {
 
     return ListTile(
       selected: isSelected,
-      leading: CircleAvatar(
-        backgroundColor: channel.isDirectMessage
-            ? theme.colorScheme.tertiaryContainer
-            : theme.colorScheme.primaryContainer,
-        child: Icon(
-          channel.isDirectMessage
-              ? Icons.person_rounded
-              : Icons.tag_rounded,
-          color: channel.isDirectMessage
-              ? theme.colorScheme.onTertiaryContainer
-              : theme.colorScheme.onPrimaryContainer,
-          size: 20,
-        ),
-      ),
+      leading: _buildAvatar(theme),
       title: Text(
         channel.title,
         maxLines: 1,
@@ -254,6 +246,71 @@ class _ChannelTile extends StatelessWidget {
         ],
       ),
       onTap: onTap,
+    );
+  }
+
+  Widget _buildAvatar(ThemeData theme) {
+    if (channel.isDirectMessage && channel.dmUsers.isNotEmpty) {
+      if (channel.dmUsers.length == 1) {
+        final user = channel.dmUsers.first;
+        return _dmAvatar(user, 40);
+      }
+      return SizedBox(
+        width: 40,
+        height: 40,
+        child: Stack(
+          children: [
+            Positioned(
+              bottom: 0,
+              left: 0,
+              child: _dmAvatar(channel.dmUsers[0], 28),
+            ),
+            Positioned(
+              top: 0,
+              right: 0,
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: theme.colorScheme.surface,
+                    width: 2,
+                  ),
+                ),
+                child: _dmAvatar(channel.dmUsers[1], 24),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return CircleAvatar(
+      backgroundColor: theme.colorScheme.primaryContainer,
+      child: Icon(
+        Icons.tag_rounded,
+        color: theme.colorScheme.onPrimaryContainer,
+        size: 20,
+      ),
+    );
+  }
+
+  Widget _dmAvatar(DmUser user, double size) {
+    final template = user.avatarTemplate;
+    if (template != null) {
+      final url = template.startsWith('http')
+          ? template.replaceAll('{size}', size.toInt().toString())
+          : '$serverUrl${template.replaceAll('{size}', size.toInt().toString())}';
+      return CircleAvatar(
+        radius: size / 2,
+        backgroundImage: CachedNetworkImageProvider(url),
+      );
+    }
+    return CircleAvatar(
+      radius: size / 2,
+      child: Text(
+        user.username.isNotEmpty ? user.username[0].toUpperCase() : '?',
+        style: TextStyle(fontSize: size * 0.4),
+      ),
     );
   }
 }

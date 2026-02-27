@@ -4,7 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lunaris/core/models/server_account.dart';
 import 'package:lunaris/core/providers/providers.dart';
-import 'package:lunaris/ui/widgets/adaptive_dialog.dart';
+import 'package:lunaris/ui/widgets/server_icon.dart';
 
 class ServerSwitcherDrawer extends ConsumerWidget {
   const ServerSwitcherDrawer({super.key});
@@ -59,7 +59,7 @@ class ServerSwitcherDrawer extends ConsumerWidget {
                     ),
                     for (final account in unauthenticated)
                       ListTile(
-                        leading: _ServerIcon(logoUrl: account.siteLogoUrl, faviconUrl: account.faviconUrl),
+                        leading: ServerIcon(logoUrl: account.siteLogoUrl, faviconUrl: account.faviconUrl),
                         title: Text(account.siteName),
                         subtitle: Text(
                           'Tap to log in',
@@ -84,57 +84,13 @@ class ServerSwitcherDrawer extends ConsumerWidget {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.dns_rounded),
-              title: const Text('Manage Servers'),
-              onTap: () {
-                Navigator.pop(context);
-                context.go('/');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.notifications_outlined),
-              title: const Text('Notification Settings'),
+              leading: const Icon(Icons.settings_outlined),
+              title: const Text('Settings'),
               onTap: () {
                 Navigator.pop(context);
                 context.push('/settings');
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.palette_outlined),
-              title: const Text('Appearance'),
-              onTap: () {
-                Navigator.pop(context);
-                context.push('/settings/theme');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.storage_outlined),
-              title: const Text('Cache & Offline'),
-              onTap: () {
-                Navigator.pop(context);
-                context.push('/settings/cache');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.lock_outlined),
-              title: const Text('Security'),
-              onTap: () {
-                Navigator.pop(context);
-                context.push('/settings/security');
-              },
-            ),
-            if (activeServer != null)
-              ListTile(
-                leading: Icon(
-                  Icons.logout_rounded,
-                  color: theme.colorScheme.error,
-                ),
-                title: Text(
-                  'Log Out',
-                  style: TextStyle(color: theme.colorScheme.error),
-                ),
-                onTap: () => _logout(context, ref),
-              ),
           ],
         ),
       ),
@@ -221,62 +177,6 @@ class ServerSwitcherDrawer extends ConsumerWidget {
     ref.read(activeServerIdProvider.notifier).setActive(account.id);
     Navigator.pop(context);
   }
-
-  Future<void> _logout(BuildContext context, WidgetRef ref) async {
-    final activeServer = ref.read(activeServerProvider);
-    if (activeServer == null) return;
-
-    final confirmed = await showAdaptiveConfirmDialog(
-      context: context,
-      title: 'Log Out',
-      content: 'Log out of ${activeServer.siteName}?',
-      confirmLabel: 'Log Out',
-    );
-
-    if (confirmed != true || !context.mounted) return;
-
-    final authService = ref.read(authServiceProvider);
-    final apiClient = ref.read(discourseApiClientProvider);
-    final accountsNotifier = ref.read(serverAccountsProvider.notifier);
-    final activeNotifier = ref.read(activeServerIdProvider.notifier);
-
-    Navigator.pop(context);
-
-    final apiKey = await authService.loadApiKey(activeServer.serverUrl);
-
-    if (apiKey != null) {
-      try {
-        await apiClient.revokeApiKey(activeServer.serverUrl, apiKey);
-      } catch (_) {}
-      await authService.deleteApiKey(activeServer.serverUrl);
-    }
-
-    final resetAccount = activeServer.copyWith(
-      isAuthenticated: false,
-      username: null,
-      userId: null,
-      avatarTemplate: null,
-      trustLevel: null,
-      clientId: null,
-      lastSyncedAt: null,
-    );
-    await accountsNotifier.update(resetAccount);
-
-    final remaining =
-        ref
-            .read(serverAccountsProvider)
-            .where((s) => s.isAuthenticated)
-            .toList();
-
-    if (remaining.isNotEmpty) {
-      await activeNotifier.setActive(remaining.first.id);
-    } else {
-      await activeNotifier.setActive(null);
-      if (context.mounted) {
-        context.go('/');
-      }
-    }
-  }
 }
 
 class _ServerTile extends StatelessWidget {
@@ -299,7 +199,7 @@ class _ServerTile extends StatelessWidget {
       selectedTileColor: theme.colorScheme.primaryContainer.withValues(
         alpha: 0.3,
       ),
-      leading: _ServerIcon(logoUrl: account.siteLogoUrl, faviconUrl: account.faviconUrl),
+      leading: ServerIcon(logoUrl: account.siteLogoUrl, faviconUrl: account.faviconUrl),
       title: Text(
         account.siteName,
         style: TextStyle(
@@ -319,59 +219,6 @@ class _ServerTile extends StatelessWidget {
               )
               : null,
       onTap: onTap,
-    );
-  }
-}
-
-class _ServerIcon extends StatelessWidget {
-  final String? logoUrl;
-  final String? faviconUrl;
-
-  const _ServerIcon({this.logoUrl, this.faviconUrl});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final imageUrl = logoUrl ?? faviconUrl;
-
-    if (imageUrl == null) {
-      return Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.primaryContainer,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(
-          Icons.forum_rounded,
-          size: 16,
-          color: theme.colorScheme.onPrimaryContainer,
-        ),
-      );
-    }
-
-    return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: CachedNetworkImage(
-          imageUrl: imageUrl,
-          width: 32,
-          height: 32,
-          fit: BoxFit.contain,
-          errorWidget:
-              (_, __, ___) => Icon(
-                Icons.forum_rounded,
-                size: 16,
-                color: theme.colorScheme.onPrimaryContainer,
-              ),
-        ),
-      ),
     );
   }
 }

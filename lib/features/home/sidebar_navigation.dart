@@ -24,8 +24,9 @@ class SidebarNavigation extends StatelessWidget {
   });
 
   static const _destinations = [
-    (Icons.forum_outlined, Icons.forum_rounded, 'Feed'),
-    (Icons.category_outlined, Icons.category_rounded, 'Categories'),
+    (Icons.forum_outlined, Icons.forum_rounded, 'Chat'),
+    (Icons.newspaper_rounded, Icons.newspaper_rounded, 'Feed'),
+    (Icons.grid_view_outlined, Icons.grid_view_rounded, 'Categories'),
     (
       Icons.notifications_outlined,
       Icons.notifications_rounded,
@@ -33,8 +34,9 @@ class SidebarNavigation extends StatelessWidget {
     ),
     (Icons.bookmark_outline_rounded, Icons.bookmark_rounded, 'Bookmarks'),
     (Icons.mail_outlined, Icons.mail_rounded, 'Messages'),
-    (Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded, 'Chat'),
   ];
+
+  static const _notificationIndex = 3;
 
   static const _reviewDest = (Icons.shield_outlined, Icons.shield_rounded, 'Review');
 
@@ -63,8 +65,8 @@ class SidebarNavigation extends StatelessWidget {
       destinations: [
         for (var i = 0; i < destinations.length; i++)
           NavigationRailDestination(
-            icon: _badgedIcon(destinations[i].$1, i == 2),
-            selectedIcon: _badgedIcon(destinations[i].$2, i == 2),
+            icon: _badgedIcon(destinations[i].$1, i == _notificationIndex),
+            selectedIcon: _badgedIcon(destinations[i].$2, i == _notificationIndex),
             label: Text(destinations[i].$3),
           ),
       ],
@@ -99,7 +101,7 @@ class SidebarNavigation extends StatelessWidget {
                     label: destinations[i].$3,
                     selected: selectedIndex == i,
                     onTap: () => onDestinationSelected(i),
-                    badgeCount: i == 2 ? notificationBadgeCount : 0,
+                    badgeCount: i == _notificationIndex ? notificationBadgeCount : 0,
                   ),
               ],
             ),

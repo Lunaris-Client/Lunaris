@@ -34,6 +34,7 @@ import 'package:lunaris/core/services/haptic_service.dart';
 import 'package:lunaris/features/chat/chat_channel_list_view.dart';
 import 'package:lunaris/features/chat/chat_channel_screen.dart';
 import 'package:lunaris/features/chat/new_chat_screen.dart';
+import 'package:lunaris/core/models/chat_channel.dart';
 import 'package:lunaris/features/admin/review_queue_view.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
@@ -44,26 +45,49 @@ class HomeShell extends ConsumerStatefulWidget {
 }
 
 class _HomeShellState extends ConsumerState<HomeShell> {
-  int _currentTab = 0;
+  int _currentTab = 5;
   String _activeFilter = 'latest';
   SiteCategory? _selectedCategory;
   String _selectedPeriod = 'all';
   Topic? _selectedTopic;
   String? _connectedServerUrl;
+  late final _messageBusNotifier = ref.read(messageBusProvider.notifier);
+  late final _apiClient = ref.read(discourseApiClientProvider);
+  late final _authService = ref.read(authServiceProvider);
+  bool _feedShowsTopics = false;
 
   @override
   void dispose() {
-    ref.read(messageBusProvider.notifier).disconnect();
+    _messageBusNotifier.disconnect();
     super.dispose();
   }
 
+  static const _mobileToContent = [5, 0, 2, 7];
+  static const _contentToMobile = {5: 0, 0: 1, 2: 2, 7: 3};
+
+  static const _desktopToContent = [5, 0, 1, 2, 3, 4, 6];
+  static const _contentToDesktop = {5: 0, 0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 6: 6};
+
   void _onTabChanged(int index) {
-    if (index == _currentTab) return;
+    final breakpoint = layoutBreakpointOf(MediaQuery.sizeOf(context).width);
+    final contentIndex = breakpoint == LayoutBreakpoint.mobile
+        ? _mobileToContent[index]
+        : _desktopToContent[index];
+    if (contentIndex == _currentTab) return;
     HapticService.selection();
     setState(() {
-      _currentTab = index;
+      _currentTab = contentIndex;
       _selectedTopic = null;
+      if (contentIndex == 0) {
+        _feedShowsTopics = false;
+        _selectedCategory = null;
+      }
     });
+  }
+
+  int get _mobileNavIndex {
+    final idx = _contentToMobile[_currentTab];
+    return idx ?? 0;
   }
 
   void _onFilterChanged(String filter) {
@@ -110,6 +134,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       _selectedCategory = category;
       _activeFilter = 'latest';
       _selectedTopic = null;
+      _feedShowsTopics = true;
       _currentTab = 0;
     });
   }
@@ -166,6 +191,67 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       '/user/$username',
       extra: UserProfileRouteExtra(serverUrl: server.serverUrl),
     );
+  }
+
+  Widget? _buildAppBarLeading(LayoutBreakpoint breakpoint) {
+    if (breakpoint == LayoutBreakpoint.mobile) {
+      if (_currentTab == 0 && _feedShowsTopics) {
+        return IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          tooltip: 'Back to categories',
+          onPressed: () => setState(() {
+            _feedShowsTopics = false;
+            _selectedCategory = null;
+            _selectedTopic = null;
+          }),
+        );
+      }
+      if (_currentTab == 1 || _currentTab == 3 || _currentTab == 4 || _currentTab == 6) {
+        return IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => setState(() {
+            _currentTab = 7;
+            _selectedTopic = null;
+          }),
+        );
+      }
+      return null;
+    }
+    return null;
+  }
+
+  Widget _buildAppBarTitle(ServerAccount server, LayoutBreakpoint breakpoint) {
+    if (breakpoint == LayoutBreakpoint.mobile) {
+      if (_currentTab == 0 && _feedShowsTopics && _selectedCategory != null) {
+        return Text(_selectedCategory!.name);
+      }
+      if (_currentTab == 0 && _feedShowsTopics) {
+        return const Text('All Topics');
+      }
+      if (_currentTab == 1) return const Text('Categories');
+      if (_currentTab == 3) return const Text('Bookmarks');
+      if (_currentTab == 4) return const Text('Messages');
+      if (_currentTab == 6) return const Text('Review Queue');
+      return Builder(
+        builder: (scaffoldContext) => GestureDetector(
+          onTap: () => Scaffold.of(scaffoldContext).openDrawer(),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildSiteLogo(server, Theme.of(context)),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  server.siteName,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return Text(server.siteName);
   }
 
   @override
@@ -263,10 +349,41 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             )
             : null;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (breakpoint == LayoutBreakpoint.mobile) {
+          if (_currentTab == 0 && _feedShowsTopics) {
+            setState(() {
+              _feedShowsTopics = false;
+              _selectedCategory = null;
+              _selectedTopic = null;
+            });
+            return;
+          }
+          if (_currentTab == 1 || _currentTab == 3 || _currentTab == 4 || _currentTab == 6) {
+            setState(() {
+              _currentTab = 7;
+              _selectedTopic = null;
+            });
+            return;
+          }
+          if (_currentTab != 5) {
+            setState(() {
+              _currentTab = 5;
+              _selectedTopic = null;
+            });
+            return;
+          }
+        }
+        Navigator.of(context).maybePop();
+      },
+      child: Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: breakpoint == LayoutBreakpoint.mobile,
-        title: Text(server.siteName),
+        automaticallyImplyLeading: false,
+        leading: _buildAppBarLeading(breakpoint),
+        title: _buildAppBarTitle(server, breakpoint),
         actions: [
           IconButton(
             icon: const Icon(Icons.search_rounded),
@@ -274,9 +391,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             onPressed: () => _openSearch(server),
           ),
           if (_currentTab == 2) _buildMarkAllReadButton(server.serverUrl),
-          if (breakpoint == LayoutBreakpoint.mobile)
+          if (breakpoint == LayoutBreakpoint.mobile) ...[
             Padding(
-              padding: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
                 onTap: server.username != null && server.username!.isNotEmpty
                     ? () => _openUserProfile(server, server.username!)
@@ -296,8 +413,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                         ),
                       ),
               ),
-            )
-          else
+            ),
+          ] else ...[
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: Builder(
@@ -307,11 +424,12 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                 ),
               ),
             ),
+          ],
         ],
       ),
       drawer: const ServerSwitcherDrawer(),
       floatingActionButton:
-          _currentTab == 0 && _selectedTopic == null
+          _currentTab == 0 && _feedShowsTopics && _selectedTopic == null
               ? siteAsync.whenOrNull(
                 data: (siteData) {
                   if (siteData == null) return null;
@@ -359,18 +477,20 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       bottomNavigationBar:
           breakpoint == LayoutBreakpoint.mobile
               ? NavigationBar(
-                selectedIndex: _currentTab,
+                selectedIndex: _mobileNavIndex,
                 onDestinationSelected: _onTabChanged,
+                labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
+                height: 56,
                 destinations: [
                   const NavigationDestination(
                     icon: Icon(Icons.forum_outlined),
                     selectedIcon: Icon(Icons.forum_rounded),
-                    label: 'Feed',
+                    label: 'Chat',
                   ),
                   const NavigationDestination(
-                    icon: Icon(Icons.category_outlined),
-                    selectedIcon: Icon(Icons.category_rounded),
-                    label: 'Categories',
+                    icon: Icon(Icons.newspaper_rounded),
+                    selectedIcon: Icon(Icons.newspaper_rounded),
+                    label: 'Feed',
                   ),
                   NavigationDestination(
                     icon: _NotificationBadge(
@@ -384,29 +504,14 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                     label: 'Notifications',
                   ),
                   const NavigationDestination(
-                    icon: Icon(Icons.bookmark_outline_rounded),
-                    selectedIcon: Icon(Icons.bookmark_rounded),
-                    label: 'Bookmarks',
+                    icon: Icon(Icons.menu_rounded),
+                    selectedIcon: Icon(Icons.menu_rounded),
+                    label: 'More',
                   ),
-                  const NavigationDestination(
-                    icon: Icon(Icons.mail_outlined),
-                    selectedIcon: Icon(Icons.mail_rounded),
-                    label: 'Messages',
-                  ),
-                  const NavigationDestination(
-                    icon: Icon(Icons.chat_bubble_outline_rounded),
-                    selectedIcon: Icon(Icons.chat_bubble_rounded),
-                    label: 'Chat',
-                  ),
-                  if (server.isAdmin || server.isModerator)
-                    const NavigationDestination(
-                      icon: Icon(Icons.shield_outlined),
-                      selectedIcon: Icon(Icons.shield_rounded),
-                      label: 'Review',
-                    ),
                 ],
               )
               : null,
+    ),
     );
   }
 
@@ -420,6 +525,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       case 1:
         content = CategoryBrowserView(
           siteData: siteData,
+          serverUrl: server.serverUrl,
           onCategorySelected: _onCategoryBrowseSelected,
         );
       case 2:
@@ -432,6 +538,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         content = _buildChatTab(server);
       case 6:
         content = ReviewQueueView(serverUrl: server.serverUrl);
+      case 7:
+        content = _buildMoreTab(server, siteData);
       default:
         content = _buildFeedTab(siteData, server.serverUrl);
     }
@@ -446,7 +554,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     return Row(
       children: [
         SidebarNavigation(
-          selectedIndex: _currentTab,
+          selectedIndex: _contentToDesktop[_currentTab] ?? 0,
           onDestinationSelected: _onTabChanged,
           extended: breakpoint == LayoutBreakpoint.desktop,
           activeServer: breakpoint == LayoutBreakpoint.desktop ? server : null,
@@ -478,6 +586,19 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 
   Widget _buildFeedTab(SiteData siteData, String serverUrl) {
+    final breakpoint = layoutBreakpointOf(MediaQuery.sizeOf(context).width);
+    if (breakpoint == LayoutBreakpoint.mobile && !_feedShowsTopics) {
+      return CategoryBrowserView(
+        siteData: siteData,
+        serverUrl: serverUrl,
+        onCategorySelected: _onCategoryBrowseSelected,
+        onAllTopicsTap: () => setState(() {
+          _feedShowsTopics = true;
+          _selectedCategory = null;
+        }),
+      );
+    }
+
     final effectivePeriod = _activeFilter == 'top' ? _selectedPeriod : null;
     return Column(
       children: [
@@ -511,7 +632,10 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     return NotificationListView(
       serverUrl: server.serverUrl,
       onNotificationTap: (topicId, postNumber) {
-        _navigateToTopic(server, topicId);
+        _navigateToTopic(server, topicId, postNumber: postNumber);
+      },
+      onChatNotificationTap: (channelId) {
+        _navigateToChatChannel(server, channelId);
       },
     );
   }
@@ -586,7 +710,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     );
   }
 
-  void _navigateToTopic(ServerAccount server, int topicId) {
+  void _navigateToTopic(ServerAccount server, int topicId, {int? postNumber}) {
     final siteAsync = ref.read(siteDataProvider(server.serverUrl));
     final categoriesById =
         siteAsync.valueOrNull != null
@@ -598,7 +722,112 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       extra: TopicRouteExtra(
         serverUrl: server.serverUrl,
         categoriesById: categoriesById,
+        initialPostNumber: postNumber,
       ),
+    );
+  }
+
+  Future<void> _navigateToChatChannel(
+    ServerAccount server,
+    int channelId,
+  ) async {
+    try {
+      final apiKey = await _authService.loadApiKey(server.serverUrl);
+      if (apiKey == null || !mounted) return;
+
+      final json = await _apiClient.fetchChatChannel(
+        server.serverUrl,
+        apiKey,
+        channelId,
+      );
+      if (!mounted) return;
+
+      final channelJson = json['channel'] as Map<String, dynamic>? ?? json;
+      final channel = ChatChannel.fromJson(channelJson);
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChatChannelScreen(
+            serverUrl: server.serverUrl,
+            channel: channel,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open chat channel')),
+        );
+      }
+    }
+  }
+
+  Widget _buildMoreTab(ServerAccount server, SiteData siteData) {
+    final theme = Theme.of(context);
+    final avatarUrl =
+        server.avatarTemplate != null
+            ? resolveAvatarUrl(server.serverUrl, server.avatarTemplate!, size: 80)
+            : null;
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        if (server.username != null && server.username!.isNotEmpty)
+          ListTile(
+            leading: avatarUrl != null
+                ? CircleAvatar(
+                    radius: 22,
+                    backgroundImage: CachedNetworkImageProvider(avatarUrl),
+                  )
+                : CircleAvatar(
+                    radius: 22,
+                    backgroundColor: theme.colorScheme.primaryContainer,
+                    child: Icon(Icons.person_rounded,
+                        color: theme.colorScheme.onPrimaryContainer),
+                  ),
+            title: Text(server.username!,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600)),
+            subtitle: Text(server.siteName,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            onTap: () => _openUserProfile(server, server.username!),
+          ),
+        const Divider(height: 1),
+        const SizedBox(height: 4),
+        _MoreMenuItem(
+          icon: Icons.mail_rounded,
+          label: 'Messages',
+          onTap: () => setState(() {
+            _currentTab = 4;
+            _selectedTopic = null;
+          }),
+        ),
+        _MoreMenuItem(
+          icon: Icons.bookmark_rounded,
+          label: 'Bookmarks',
+          onTap: () => setState(() {
+            _currentTab = 3;
+            _selectedTopic = null;
+          }),
+        ),
+        if (server.isAdmin || server.isModerator)
+          _MoreMenuItem(
+            icon: Icons.shield_rounded,
+            label: 'Review Queue',
+            onTap: () => setState(() {
+              _currentTab = 6;
+              _selectedTopic = null;
+            }),
+          ),
+        const Divider(height: 1),
+        const SizedBox(height: 4),
+        _MoreMenuItem(
+          icon: Icons.settings_rounded,
+          label: 'Settings',
+          onTap: () => context.push('/settings'),
+        ),
+      ],
     );
   }
 
@@ -765,6 +994,29 @@ class _BootstrapError extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _MoreMenuItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _MoreMenuItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      leading: Icon(icon, color: theme.colorScheme.onSurfaceVariant),
+      title: Text(label),
+      onTap: onTap,
+      visualDensity: VisualDensity.compact,
     );
   }
 }

@@ -57,75 +57,96 @@ class MarkdownToolbar extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
+        color: theme.colorScheme.surfaceContainer,
         border: Border(
-          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+          top: BorderSide(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
         ),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: Row(
-          children: [
-            _ToolbarButton(
-              icon: Icons.format_bold_rounded,
-              tooltip: 'Bold',
-              onTap: () => _wrap('**', '**', placeholder: 'bold'),
-            ),
-            _ToolbarButton(
-              icon: Icons.format_italic_rounded,
-              tooltip: 'Italic',
-              onTap: () => _wrap('*', '*', placeholder: 'italic'),
-            ),
-            _ToolbarButton(
-              icon: Icons.link_rounded,
-              tooltip: 'Link',
-              onTap: () => _wrap('[', '](url)', placeholder: 'link text'),
-            ),
-            _ToolbarButton(
-              icon: Icons.image_outlined,
-              tooltip: 'Image',
-              onTap: () => _wrap('![', '](url)', placeholder: 'alt text'),
-            ),
-            if (onAttachTap != null)
-              _ToolbarButton(
-                icon: Icons.attach_file_rounded,
-                tooltip: 'Attach file',
-                onTap: onAttachTap,
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Row(
+                children: [
+                  _ToolbarButton(
+                    icon: Icons.format_bold_rounded,
+                    tooltip: 'Bold',
+                    onTap: () => _wrap('**', '**', placeholder: 'bold'),
+                  ),
+                  _ToolbarButton(
+                    icon: Icons.format_italic_rounded,
+                    tooltip: 'Italic',
+                    onTap: () => _wrap('*', '*', placeholder: 'italic'),
+                  ),
+                  _ToolbarButton(
+                    icon: Icons.link_rounded,
+                    tooltip: 'Link',
+                    onTap: () =>
+                        _wrap('[', '](url)', placeholder: 'link text'),
+                  ),
+                  _ToolbarButton(
+                    icon: Icons.image_outlined,
+                    tooltip: 'Image',
+                    onTap: () =>
+                        _wrap('![', '](url)', placeholder: 'alt text'),
+                  ),
+                  if (onAttachTap != null)
+                    _ToolbarButton(
+                      icon: Icons.attach_file_rounded,
+                      tooltip: 'Attach file',
+                      onTap: onAttachTap,
+                    ),
+                  _ToolbarButton(
+                    icon: Icons.format_quote_rounded,
+                    tooltip: 'Quote',
+                    onTap: () => _prefixLine('> '),
+                  ),
+                  _ToolbarButton(
+                    icon: Icons.code_rounded,
+                    tooltip: 'Code',
+                    onTap: () => _wrap('`', '`', placeholder: 'code'),
+                  ),
+                  _ToolbarButton(
+                    icon: Icons.format_list_bulleted_rounded,
+                    tooltip: 'List',
+                    onTap: () => _prefixLine('- '),
+                  ),
+                  _ToolbarButton(
+                    icon: Icons.title_rounded,
+                    tooltip: 'Heading',
+                    onTap: () => _prefixLine('## '),
+                  ),
+                ],
               ),
-            _ToolbarButton(
-              icon: Icons.format_quote_rounded,
-              tooltip: 'Quote',
-              onTap: () => _prefixLine('> '),
             ),
-            _ToolbarButton(
-              icon: Icons.code_rounded,
-              tooltip: 'Code',
-              onTap: () => _wrap('`', '`', placeholder: 'code'),
+          ),
+          if (showPreviewToggle) ...[
+            SizedBox(
+              height: 24,
+              child: VerticalDivider(
+                width: 1,
+                thickness: 1,
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+              ),
             ),
-            _ToolbarButton(
-              icon: Icons.format_list_bulleted_rounded,
-              tooltip: 'List',
-              onTap: () => _prefixLine('- '),
-            ),
-            _ToolbarButton(
-              icon: Icons.title_rounded,
-              tooltip: 'Heading',
-              onTap: () => _prefixLine('## '),
-            ),
-            const SizedBox(width: 8),
-            if (showPreviewToggle)
-              _ToolbarButton(
-                icon:
-                    previewActive
-                        ? Icons.edit_rounded
-                        : Icons.visibility_rounded,
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: _ToolbarButton(
+                icon: previewActive
+                    ? Icons.edit_rounded
+                    : Icons.visibility_rounded,
                 tooltip: previewActive ? 'Edit' : 'Preview',
                 onTap: onTogglePreview,
                 highlighted: previewActive,
               ),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -147,19 +168,31 @@ class _ToolbarButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return IconButton(
-      icon: Icon(
-        icon,
-        size: 20,
-        color:
-            highlighted
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurfaceVariant,
+    return SizedBox(
+      width: 36,
+      height: 36,
+      child: IconButton(
+        icon: Icon(
+          icon,
+          size: 19,
+          color: highlighted
+              ? theme.colorScheme.primary
+              : theme.colorScheme.onSurfaceVariant,
+        ),
+        tooltip: tooltip,
+        onPressed: onTap,
+        padding: EdgeInsets.zero,
+        splashRadius: 16,
+        style: highlighted
+            ? IconButton.styleFrom(
+                backgroundColor:
+                    theme.colorScheme.primary.withValues(alpha: 0.1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              )
+            : null,
       ),
-      tooltip: tooltip,
-      onPressed: onTap,
-      visualDensity: VisualDensity.compact,
-      splashRadius: 18,
     );
   }
 }

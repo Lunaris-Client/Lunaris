@@ -23,6 +23,7 @@ dependencies:
   cached_network_image: ^3.4.1
   flutter_svg: ^2.0.17
   timeago: ^3.7.0
+  intl: ^0.20.0
   cupertino_icons: ^1.0.8
   pointycastle: ^3.9.1
   app_links: ^6.3.3

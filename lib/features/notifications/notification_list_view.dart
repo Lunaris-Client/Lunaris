@@ -9,11 +9,13 @@ import 'package:lunaris/core/utils/color_utils.dart';
 class NotificationListView extends ConsumerWidget {
   final String serverUrl;
   final void Function(int topicId, int? postNumber)? onNotificationTap;
+  final void Function(int channelId)? onChatNotificationTap;
 
   const NotificationListView({
     super.key,
     required this.serverUrl,
     this.onNotificationTap,
+    this.onChatNotificationTap,
   });
 
   @override
@@ -108,7 +110,7 @@ class NotificationListView extends ConsumerWidget {
     }
 
     return RefreshIndicator(
-      onRefresh: () => notifier.refresh(),
+      onRefresh: notifier.refresh,
       child: ListView.separated(
         itemCount: filtered.length,
         separatorBuilder: (_, __) => const Divider(height: 1, indent: 72),
@@ -118,17 +120,34 @@ class NotificationListView extends ConsumerWidget {
             notification: notification,
             serverUrl: serverUrl,
             onTap: () {
-              if (notification.topicId != null) {
-                onNotificationTap?.call(
-                  notification.topicId!,
-                  notification.postNumber,
-                );
-              }
+              _handleNotificationTap(notification);
             },
           );
         },
       ),
     );
+  }
+
+  void _handleNotificationTap(DiscourseNotification notification) {
+    final type = notification.notificationType;
+
+    if (type == NotificationType.chatMention ||
+        type == NotificationType.chatGroupMention ||
+        type == NotificationType.chatInvitation ||
+        type == NotificationType.chatWatchedThread) {
+      final channelId = notification.data.chatChannelId;
+      if (channelId != null) {
+        onChatNotificationTap?.call(channelId);
+      }
+      return;
+    }
+
+    if (notification.topicId != null) {
+      onNotificationTap?.call(
+        notification.topicId!,
+        notification.postNumber,
+      );
+    }
   }
 }
 
@@ -149,27 +168,49 @@ class _FilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 48,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        itemCount: _filters.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final (filter, label) = _filters[index];
-          final isActive = activeFilter == filter;
-          return Center(
-            child: FilterChip(
-              label: Text(label),
-              selected: isActive,
-              onSelected: (_) => onFilterChanged(filter),
-              showCheckmark: false,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          );
-        },
-      ),
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 36,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _filters.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 4),
+            itemBuilder: (context, index) {
+              final (filter, label) = _filters[index];
+              final selected = activeFilter == filter;
+              return Center(
+                child: Material(
+                  color: selected
+                      ? theme.colorScheme.onSurface.withValues(alpha: 0.08)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  child: InkWell(
+                    onTap: () => onFilterChanged(filter),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      child: Text(
+                        label,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: selected
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.onSurfaceVariant,
+                          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const Divider(height: 1),
+      ],
     );
   }
 }
@@ -191,9 +232,6 @@ class _NotificationTile extends StatelessWidget {
     final unread = !notification.read;
     final (icon, iconColor) = _notificationIcon(notification, theme);
 
-    final username =
-        notification.data.displayUsername ?? notification.data.originalUsername;
-
     final title = _buildTitle(notification);
     final topicTitle =
         notification.fancyTitle ?? notification.data.topicTitle ?? '';
@@ -206,7 +244,7 @@ class _NotificationTile extends StatelessWidget {
       leading: Stack(
         clipBehavior: Clip.none,
         children: [
-          _buildAvatar(username, theme),
+          _buildAvatar(theme),
           Positioned(
             right: -4,
             bottom: -4,
@@ -252,33 +290,51 @@ class _NotificationTile extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar(String? username, ThemeData theme) {
-    if (username == null || username.isEmpty) {
+  Widget _buildAvatar(ThemeData theme) {
+    final template = notification.actingUserAvatarTemplate;
+    if (template != null && template.isNotEmpty) {
+      final avatarUrl = resolveAvatarUrl(serverUrl, template, size: 40);
       return CircleAvatar(
         radius: 20,
+        backgroundImage: CachedNetworkImageProvider(avatarUrl),
         backgroundColor: theme.colorScheme.primaryContainer,
-        child: Icon(
-          Icons.person_rounded,
-          size: 20,
-          color: theme.colorScheme.onPrimaryContainer,
-        ),
       );
     }
 
-    final avatarUrl = resolveAvatarUrl(
-      serverUrl,
-      '/letter_avatar_proxy/v4/letter/${username[0].toLowerCase()}/96/{size}.png',
-    );
+    final username =
+        notification.data.displayUsername ?? notification.data.originalUsername;
+    if (username != null && username.isNotEmpty) {
+      final avatarUrl = resolveAvatarUrl(
+        serverUrl,
+        '/letter_avatar_proxy/v4/letter/${username[0].toLowerCase()}/96/{size}.png',
+      );
+      return CircleAvatar(
+        radius: 20,
+        backgroundImage: CachedNetworkImageProvider(avatarUrl),
+        backgroundColor: theme.colorScheme.primaryContainer,
+      );
+    }
 
     return CircleAvatar(
       radius: 20,
-      backgroundImage: CachedNetworkImageProvider(avatarUrl),
       backgroundColor: theme.colorScheme.primaryContainer,
+      child: Icon(
+        Icons.person_rounded,
+        size: 20,
+        color: theme.colorScheme.onPrimaryContainer,
+      ),
     );
   }
 
   String _buildTitle(DiscourseNotification n) {
-    final user = n.data.displayUsername ?? n.data.originalUsername ?? 'Someone';
+    final user = n.data.displayUsername ??
+        n.actingUserName ??
+        n.data.originalUsername ??
+        n.data.mentionedByUsername ??
+        n.data.invitedByUsername ??
+        n.data.username ??
+        'Someone';
+    final channelName = n.data.chatChannelTitle;
     return switch (n.notificationType) {
       NotificationType.mentioned => '$user mentioned you',
       NotificationType.replied => '$user replied',
@@ -292,7 +348,7 @@ class _NotificationTile extends StatelessWidget {
       NotificationType.movedPost => '$user moved your post',
       NotificationType.linked => '$user linked to your post',
       NotificationType.grantedBadge =>
-        'Granted "${n.data.badgeName ?? 'badge'}"',
+        'Earned \'${n.data.badgeName ?? 'badge'}\'',
       NotificationType.invitedToTopic => '$user invited you to a topic',
       NotificationType.groupMentioned =>
         '$user mentioned ${n.data.groupName ?? 'your group'}',
@@ -304,6 +360,20 @@ class _NotificationTile extends StatelessWidget {
       NotificationType.reaction => '$user reacted to your post',
       NotificationType.groupMessageSummary =>
         '${n.data.count ?? 0} messages in ${n.data.groupName ?? 'group'}',
+      NotificationType.chatMention =>
+        channelName != null
+            ? '$user mentioned you in "$channelName"'
+            : '$user mentioned you in chat',
+      NotificationType.chatGroupMention =>
+        channelName != null
+            ? '$user mentioned you in "$channelName"'
+            : '$user mentioned your group in chat',
+      NotificationType.chatInvitation =>
+        channelName != null
+            ? '$user invited you to "$channelName"'
+            : '$user invited you to a chat',
+      NotificationType.chatWatchedThread =>
+        '$user replied in a thread you\'re watching',
       _ => '$user sent a notification',
     };
   }

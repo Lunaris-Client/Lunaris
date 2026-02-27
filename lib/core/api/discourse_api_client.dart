@@ -528,7 +528,7 @@ class DiscourseApiClient {
     required String query,
     int? page,
   }) async {
-    final params = <String, dynamic>{'q': query};
+    final params = <String, dynamic>{'term': query};
     if (page != null && page > 0) params['page'] = page;
     final response = await _dio.get(
       '$serverUrl/search/query.json',
@@ -597,7 +597,19 @@ class DiscourseApiClient {
     String apiKey,
   ) async {
     final response = await _dio.get(
-      '$serverUrl/chat/api/channels',
+      '$serverUrl/chat/api/me/channels',
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fetchChatChannel(
+    String serverUrl,
+    String apiKey,
+    int channelId,
+  ) async {
+    final response = await _dio.get(
+      '$serverUrl/chat/api/channels/$channelId',
       options: _authHeaders(apiKey),
     );
     return response.data as Map<String, dynamic>;
@@ -933,6 +945,173 @@ class DiscourseApiClient {
         'silenced_till': silencedTill,
         if (message != null) 'message': message,
       },
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<Map<String, dynamic>> fetchAdminUser(
+    String serverUrl,
+    String apiKey,
+    int userId,
+  ) async {
+    final response = await _dio.get(
+      '$serverUrl/admin/users/$userId.json',
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<void> unsuspendUser(
+    String serverUrl,
+    String apiKey,
+    int userId,
+  ) async {
+    await _dio.put(
+      '$serverUrl/admin/users/$userId/unsuspend',
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> unsilenceUser(
+    String serverUrl,
+    String apiKey,
+    int userId,
+  ) async {
+    await _dio.put(
+      '$serverUrl/admin/users/$userId/unsilence',
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> grantAdmin(
+    String serverUrl,
+    String apiKey,
+    int userId,
+  ) async {
+    await _dio.put(
+      '$serverUrl/admin/users/$userId/grant_admin',
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> revokeAdmin(
+    String serverUrl,
+    String apiKey,
+    int userId,
+  ) async {
+    await _dio.put(
+      '$serverUrl/admin/users/$userId/revoke_admin',
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> grantModeration(
+    String serverUrl,
+    String apiKey,
+    int userId,
+  ) async {
+    await _dio.put(
+      '$serverUrl/admin/users/$userId/grant_moderation',
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> revokeModeration(
+    String serverUrl,
+    String apiKey,
+    int userId,
+  ) async {
+    await _dio.put(
+      '$serverUrl/admin/users/$userId/revoke_moderation',
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> logOutUser(
+    String serverUrl,
+    String apiKey,
+    int userId,
+  ) async {
+    await _dio.post(
+      '$serverUrl/admin/users/$userId/log_out',
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> activateUser(
+    String serverUrl,
+    String apiKey,
+    int userId,
+  ) async {
+    await _dio.put(
+      '$serverUrl/admin/users/$userId/activate',
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> deactivateUser(
+    String serverUrl,
+    String apiKey,
+    int userId,
+  ) async {
+    await _dio.put(
+      '$serverUrl/admin/users/$userId/deactivate',
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> changeTrustLevel(
+    String serverUrl,
+    String apiKey,
+    int userId,
+    int level,
+  ) async {
+    await _dio.put(
+      '$serverUrl/admin/users/$userId/trust_level',
+      data: {'level': level},
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> deleteUser(
+    String serverUrl,
+    String apiKey,
+    int userId, {
+    bool deletePosts = false,
+    bool blockEmail = false,
+    bool blockIp = false,
+    bool blockUrls = false,
+  }) async {
+    await _dio.delete(
+      '$serverUrl/admin/users/$userId.json',
+      data: {
+        'delete_posts': deletePosts,
+        'block_email': blockEmail,
+        'block_ip': blockIp,
+        'block_urls': blockUrls,
+      },
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> anonymizeUser(
+    String serverUrl,
+    String apiKey,
+    int userId,
+  ) async {
+    await _dio.put(
+      '$serverUrl/admin/users/$userId/anonymize',
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> disableSecondFactor(
+    String serverUrl,
+    String apiKey,
+    int userId,
+  ) async {
+    await _dio.put(
+      '$serverUrl/admin/users/$userId/disable_second_factor',
       options: _authHeaders(apiKey),
     );
   }
