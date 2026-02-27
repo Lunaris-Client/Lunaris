@@ -45,6 +45,7 @@ class MessageBusManager extends StateNotifier<MessageBusEvent?> {
     _client!.subscribe('/unread/$userId', -1, _onUnread);
     _client!.subscribe('/new', -1, _onNew);
     _client!.subscribe('/latest', -1, _onLatest);
+    _client!.subscribe('/chat/$userId/new-messages', -1, _onChatMessage);
 
     _client!.start();
   }
@@ -78,6 +79,10 @@ class MessageBusManager extends StateNotifier<MessageBusEvent?> {
 
   void _onLatest(MessageBusMessage msg) {
     state = MessageBusEvent(type: 'latest', data: msg.data);
+  }
+
+  void _onChatMessage(MessageBusMessage msg) {
+    state = MessageBusEvent(type: 'chat_message', data: msg.data);
   }
 
   void _updateChannelPosition(String serverUrl, int messageId) {

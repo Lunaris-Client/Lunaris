@@ -31,6 +31,7 @@ class SidebarNavigation extends StatelessWidget {
     ),
     (Icons.bookmark_outline_rounded, Icons.bookmark_rounded, 'Bookmarks'),
     (Icons.mail_outlined, Icons.mail_rounded, 'Messages'),
+    (Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded, 'Chat'),
   ];
 
   @override

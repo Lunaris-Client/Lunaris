@@ -31,6 +31,9 @@ import 'package:lunaris/core/providers/connectivity_provider.dart';
 import 'package:lunaris/core/services/offline_action_service.dart';
 import 'package:lunaris/core/services/app_badge_service.dart';
 import 'package:lunaris/core/services/haptic_service.dart';
+import 'package:lunaris/features/chat/chat_channel_list_view.dart';
+import 'package:lunaris/features/chat/chat_channel_screen.dart';
+import 'package:lunaris/features/chat/new_chat_screen.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
@@ -237,6 +240,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     final siteAsync = ref.watch(siteDataProvider(server.serverUrl));
 
     ref.listen(siteDataProvider(server.serverUrl), (prev, next) {
+      if (next.isLoading || next.hasError) return;
       if (next.hasValue && next.value != null) {
         final service = ref.read(siteBootstrapServiceProvider);
         if (service.needsRefresh(next.value!)) {
@@ -329,6 +333,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           const _OfflineBanner(),
           Expanded(
             child: siteAsync.when(
+              skipLoadingOnReload: true,
+              skipLoadingOnRefresh: true,
               loading: () => const Center(child: CircularProgressIndicator()),
               error:
                   (error, _) => _BootstrapError(
@@ -386,6 +392,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                     selectedIcon: Icon(Icons.mail_rounded),
                     label: 'Messages',
                   ),
+                  const NavigationDestination(
+                    icon: Icon(Icons.chat_bubble_outline_rounded),
+                    selectedIcon: Icon(Icons.chat_bubble_rounded),
+                    label: 'Chat',
+                  ),
                 ],
               )
               : null,
@@ -410,6 +421,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         content = _buildBookmarksTab(server);
       case 4:
         content = _buildMessagesTab(server);
+      case 5:
+        content = _buildChatTab(server);
       default:
         content = _buildFeedTab(siteData, server.serverUrl);
     }
@@ -514,6 +527,31 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       username: username,
       onTopicSelected: _onTopicSelected,
       selectedTopicId: _selectedTopic?.id,
+    );
+  }
+
+  Widget _buildChatTab(ServerAccount server) {
+    return ChatChannelListView(
+      serverUrl: server.serverUrl,
+      onChannelSelected: (channel) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ChatChannelScreen(
+              serverUrl: server.serverUrl,
+              channel: channel,
+            ),
+          ),
+        );
+      },
+      onNewChat: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => NewChatScreen(
+              serverUrl: server.serverUrl,
+            ),
+          ),
+        );
+      },
     );
   }
 

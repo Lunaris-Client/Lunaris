@@ -1,0 +1,259 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lunaris/core/models/chat_channel.dart';
+import 'package:lunaris/core/providers/chat_provider.dart';
+import 'package:timeago/timeago.dart' as timeago;
+
+class ChatChannelListView extends ConsumerWidget {
+  final String serverUrl;
+  final ValueChanged<ChatChannel>? onChannelSelected;
+  final int? selectedChannelId;
+  final VoidCallback? onNewChat;
+
+  const ChatChannelListView({
+    super.key,
+    required this.serverUrl,
+    this.onChannelSelected,
+    this.selectedChannelId,
+    this.onNewChat,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(chatChannelListProvider(serverUrl));
+    final theme = Theme.of(context);
+
+    if (state.isLoading && state.channels.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (state.error != null && state.channels.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 48,
+                color: theme.colorScheme.error.withValues(alpha: 0.6),
+              ),
+              const SizedBox(height: 12),
+              Text('Failed to load chat', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Text(
+                _errorText(state.error),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: () =>
+                    ref.read(chatChannelListProvider(serverUrl).notifier).refresh(),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (state.channels.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.chat_bubble_outline_rounded,
+              size: 48,
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+            ),
+            const SizedBox(height: 12),
+            Text('No chat channels', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              'Chat may not be enabled on this server',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final publicChannels = state.publicChannels;
+    final dms = state.directMessages;
+
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: () =>
+            ref.read(chatChannelListProvider(serverUrl).notifier).refresh(),
+        child: ListView(
+          children: [
+            if (publicChannels.isNotEmpty) ...[
+              _SectionHeader(title: 'Channels', count: publicChannels.length),
+              for (final channel in publicChannels)
+                _ChannelTile(
+                  channel: channel,
+                  isSelected: selectedChannelId == channel.id,
+                  onTap: () => onChannelSelected?.call(channel),
+                ),
+            ],
+            if (dms.isNotEmpty) ...[
+              _SectionHeader(title: 'Direct Messages', count: dms.length),
+              for (final dm in dms)
+                _ChannelTile(
+                  channel: dm,
+                  isSelected: selectedChannelId == dm.id,
+                  onTap: () => onChannelSelected?.call(dm),
+                ),
+            ],
+          ],
+        ),
+      ),
+      floatingActionButton: onNewChat != null
+          ? FloatingActionButton(
+              onPressed: onNewChat,
+              tooltip: 'New message',
+              child: const Icon(Icons.edit_rounded),
+            )
+          : null,
+    );
+  }
+
+  String _errorText(Object? error) {
+    final msg = error.toString();
+    if (msg.contains('404')) return 'Chat plugin may not be installed';
+    if (msg.contains('403')) return 'You don\'t have access to chat';
+    return msg;
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final int count;
+
+  const _SectionHeader({required this.title, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '($count)',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChannelTile extends StatelessWidget {
+  final ChatChannel channel;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ChannelTile({
+    required this.channel,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasUnread = (channel.unreadCount ?? 0) > 0;
+
+    return ListTile(
+      selected: isSelected,
+      leading: CircleAvatar(
+        backgroundColor: channel.isDirectMessage
+            ? theme.colorScheme.tertiaryContainer
+            : theme.colorScheme.primaryContainer,
+        child: Icon(
+          channel.isDirectMessage
+              ? Icons.person_rounded
+              : Icons.tag_rounded,
+          color: channel.isDirectMessage
+              ? theme.colorScheme.onTertiaryContainer
+              : theme.colorScheme.onPrimaryContainer,
+          size: 20,
+        ),
+      ),
+      title: Text(
+        channel.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: hasUnread
+            ? theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)
+            : null,
+      ),
+      subtitle: channel.lastMessage != null
+          ? Text(
+              channel.lastMessage!.excerpt ??
+                  channel.lastMessage!.message,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            )
+          : channel.description != null
+              ? Text(
+                  channel.description!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                )
+              : null,
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (channel.lastMessage != null)
+            Text(
+              timeago.format(channel.lastMessage!.createdAt, locale: 'en_short'),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: hasUnread
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          if (hasUnread) ...[
+            const SizedBox(height: 4),
+            Badge.count(
+              count: channel.unreadCount!,
+              backgroundColor: (channel.unreadMentions ?? 0) > 0
+                  ? theme.colorScheme.error
+                  : theme.colorScheme.primary,
+            ),
+          ],
+        ],
+      ),
+      onTap: onTap,
+    );
+  }
+}

@@ -16,26 +16,31 @@ class DesktopTrayService with TrayListener {
 
   Future<void> init({String tooltip = 'Lunaris'}) async {
     if (!isSupported || _initialized) return;
-    _initialized = true;
+    try {
+      trayManager.addListener(this);
+      await trayManager.setToolTip(tooltip);
 
-    trayManager.addListener(this);
-    await trayManager.setToolTip(tooltip);
-
-    await trayManager.setContextMenu(
-      Menu(
-        items: [
-          MenuItem(key: 'show', label: 'Show Lunaris'),
-          MenuItem.separator(),
-          MenuItem(key: 'quit', label: 'Quit'),
-        ],
-      ),
-    );
+      await trayManager.setContextMenu(
+        Menu(
+          items: [
+            MenuItem(key: 'show', label: 'Show Lunaris'),
+            MenuItem.separator(),
+            MenuItem(key: 'quit', label: 'Quit'),
+          ],
+        ),
+      );
+      _initialized = true;
+    } catch (_) {
+      _initialized = false;
+    }
   }
 
   Future<void> updateBadge(int count) async {
     if (!isSupported || !_initialized) return;
-    final tooltip = count > 0 ? 'Lunaris ($count unread)' : 'Lunaris';
-    await trayManager.setToolTip(tooltip);
+    try {
+      final tooltip = count > 0 ? 'Lunaris ($count unread)' : 'Lunaris';
+      await trayManager.setToolTip(tooltip);
+    } catch (_) {}
   }
 
   void _showWindow() {

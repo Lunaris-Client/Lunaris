@@ -116,8 +116,12 @@ class SiteDataNotifier extends FamilyAsyncNotifier<SiteData?, String> {
   }
 
   Future<void> refresh() async {
+    final previous = state.valueOrNull;
     final service = ref.read(siteBootstrapServiceProvider);
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() => service.fetchAndCache(arg));
+    if (state.hasError && previous != null) {
+      state = AsyncValue.data(previous);
+    }
   }
 }

@@ -1,21 +1,21 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_app_badger/flutter_app_badger.dart';
+import 'package:flutter/services.dart';
 
 class AppBadgeService {
+  static const _channel = MethodChannel('app_badge');
+
   static bool get isSupported =>
       !kIsWeb && (Platform.isIOS || Platform.isAndroid || Platform.isMacOS);
 
   static Future<void> updateCount(int count) async {
     if (!isSupported) return;
     try {
-      final supported = await FlutterAppBadger.isAppBadgeSupported();
-      if (!supported) return;
       if (count > 0) {
-        FlutterAppBadger.updateBadgeCount(count);
+        await _channel.invokeMethod('updateBadgeCount', count);
       } else {
-        FlutterAppBadger.removeBadge();
+        await _channel.invokeMethod('removeBadge');
       }
     } catch (_) {}
   }
@@ -23,7 +23,7 @@ class AppBadgeService {
   static Future<void> clear() async {
     if (!isSupported) return;
     try {
-      FlutterAppBadger.removeBadge();
+      await _channel.invokeMethod('removeBadge');
     } catch (_) {}
   }
 }

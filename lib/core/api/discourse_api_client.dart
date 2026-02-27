@@ -1,19 +1,60 @@
 import 'package:dio/dio.dart';
 import 'package:lunaris/core/models/models.dart';
 
+class _RateLimitInterceptor extends Interceptor {
+  final Dio _retryDio;
+
+  _RateLimitInterceptor(BaseOptions baseOptions)
+      : _retryDio = Dio(baseOptions);
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    if (err.response?.statusCode == 429) {
+      final retryAfter = err.response?.headers.value('retry-after');
+      final waitSeconds = int.tryParse(retryAfter ?? '') ?? 10;
+      Future.delayed(Duration(seconds: waitSeconds), () async {
+        try {
+          final options = err.requestOptions;
+          final response = await _retryDio.request(
+            options.path,
+            data: options.data,
+            queryParameters: options.queryParameters,
+            options: Options(
+              method: options.method,
+              headers: options.headers,
+              responseType: options.responseType,
+              contentType: options.contentType,
+            ),
+          );
+          handler.resolve(response);
+        } catch (e) {
+          handler.reject(
+            e is DioException
+                ? e
+                : DioException(
+                    requestOptions: err.requestOptions, error: e),
+          );
+        }
+      });
+    } else {
+      handler.next(err);
+    }
+  }
+}
+
 class DiscourseApiClient {
   late final Dio _dio;
 
   DiscourseApiClient({Dio? dio}) {
-    _dio =
-        dio ??
-        Dio(
-          BaseOptions(
-            connectTimeout: const Duration(seconds: 10),
-            receiveTimeout: const Duration(seconds: 10),
-            headers: {'Accept': 'application/json'},
-          ),
-        );
+    final baseOptions = BaseOptions(
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 10),
+      headers: {'Accept': 'application/json'},
+    );
+    _dio = dio ?? Dio(baseOptions);
+    if (dio == null) {
+      _dio.interceptors.add(_RateLimitInterceptor(baseOptions));
+    }
   }
 
   String normalizeUrl(String url) {
@@ -549,5 +590,220 @@ class DiscourseApiClient {
       options: _authHeaders(apiKey),
     );
     return (response.data['user_actions'] as List?) ?? [];
+  }
+
+  Future<Map<String, dynamic>> fetchChatChannels(
+    String serverUrl,
+    String apiKey,
+  ) async {
+    final response = await _dio.get(
+      '$serverUrl/chat/api/channels',
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fetchChatMessages(
+    String serverUrl,
+    String apiKey,
+    int channelId, {
+    int? pageSize,
+    int? beforeMessageId,
+  }) async {
+    final params = <String, dynamic>{};
+    if (pageSize != null) params['page_size'] = pageSize;
+    if (beforeMessageId != null) params['before'] = beforeMessageId;
+    final response = await _dio.get(
+      '$serverUrl/chat/api/channels/$channelId/messages',
+      queryParameters: params.isEmpty ? null : params,
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> sendChatMessage(
+    String serverUrl,
+    String apiKey,
+    int channelId, {
+    required String message,
+    int? inReplyToId,
+  }) async {
+    final data = <String, dynamic>{'message': message};
+    if (inReplyToId != null) data['in_reply_to_id'] = inReplyToId;
+    final response = await _dio.post(
+      '$serverUrl/chat/$channelId',
+      data: data,
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fetchChatThreadMessages(
+    String serverUrl,
+    String apiKey,
+    int channelId,
+    int threadId, {
+    int? pageSize,
+    int? beforeMessageId,
+  }) async {
+    final params = <String, dynamic>{};
+    if (pageSize != null) params['page_size'] = pageSize;
+    if (beforeMessageId != null) params['before'] = beforeMessageId;
+    final response = await _dio.get(
+      '$serverUrl/chat/api/channels/$channelId/threads/$threadId/messages',
+      queryParameters: params.isEmpty ? null : params,
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> sendChatThreadMessage(
+    String serverUrl,
+    String apiKey,
+    int channelId,
+    int threadId, {
+    required String message,
+  }) async {
+    final response = await _dio.post(
+      '$serverUrl/chat/$channelId',
+      data: {'message': message, 'thread_id': threadId},
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<void> markChatChannelRead(
+    String serverUrl,
+    String apiKey,
+    int channelId, {
+    required int messageId,
+  }) async {
+    await _dio.put(
+      '$serverUrl/chat/api/channels/$channelId/read',
+      data: {'message_id': messageId},
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> editChatMessage(
+    String serverUrl,
+    String apiKey,
+    int channelId,
+    int messageId, {
+    required String message,
+  }) async {
+    await _dio.put(
+      '$serverUrl/chat/api/channels/$channelId/messages/$messageId',
+      data: {'message': message},
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> deleteChatMessage(
+    String serverUrl,
+    String apiKey,
+    int channelId,
+    int messageId,
+  ) async {
+    await _dio.delete(
+      '$serverUrl/chat/api/channels/$channelId/messages/$messageId',
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<Map<String, dynamic>> bookmarkChatMessage(
+    String serverUrl,
+    String apiKey, {
+    required int messageId,
+  }) async {
+    final response = await _dio.post(
+      '$serverUrl/bookmarks.json',
+      data: {
+        'bookmarkable_type': 'Chat::Message',
+        'bookmarkable_id': messageId,
+      },
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<void> flagChatMessage(
+    String serverUrl,
+    String apiKey,
+    int channelId,
+    int messageId, {
+    required int flagType,
+    String? message,
+  }) async {
+    final data = <String, dynamic>{'flag_type_id': flagType};
+    if (message != null) data['message'] = message;
+    await _dio.post(
+      '$serverUrl/chat/api/channels/$channelId/messages/$messageId/flags',
+      data: data,
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> updatePresence(
+    String serverUrl,
+    String apiKey, {
+    required String clientId,
+    List<String>? presentChannels,
+    List<String>? leaveChannels,
+  }) async {
+    final data = <String, dynamic>{'client_id': clientId};
+    if (presentChannels != null) data['present_channels'] = presentChannels;
+    if (leaveChannels != null) data['leave_channels'] = leaveChannels;
+    await _dio.post(
+      '$serverUrl/presence/update',
+      data: data,
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<void> reactChatMessage(
+    String serverUrl,
+    String apiKey,
+    int channelId,
+    int messageId, {
+    required String emoji,
+    required String action,
+  }) async {
+    await _dio.put(
+      '$serverUrl/chat/$channelId/react/$messageId',
+      data: {'emoji': emoji, 'react_action': action},
+      options: _authHeaders(apiKey),
+    );
+  }
+
+  Future<Map<String, dynamic>> createDirectMessageChannel(
+    String serverUrl,
+    String apiKey, {
+    required List<String> targetUsernames,
+    String? name,
+  }) async {
+    final data = <String, dynamic>{
+      'target_usernames': targetUsernames.join(','),
+    };
+    if (name != null && name.isNotEmpty) data['name'] = name;
+    final response = await _dio.post(
+      '$serverUrl/chat/api/direct-message-channels',
+      data: data,
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getPresence(
+    String serverUrl,
+    String apiKey, {
+    required List<String> channels,
+  }) async {
+    final response = await _dio.get(
+      '$serverUrl/presence/get',
+      queryParameters: {'channels[]': channels},
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
   }
 }
