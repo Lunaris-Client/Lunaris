@@ -15,6 +15,7 @@ import 'package:lunaris/core/models/models.dart';
 import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/core/providers/theme_settings_provider.dart';
 import 'package:lunaris/core/services/background_notification_service.dart';
+import 'package:lunaris/core/services/desktop_notification_poller.dart';
 import 'package:lunaris/core/services/local_notification_service.dart';
 import 'package:lunaris/core/services/window_state_service.dart';
 import 'package:lunaris/core/services/desktop_tray_service.dart';
@@ -33,6 +34,9 @@ void main() async {
   }
   if (DesktopTrayService.isSupported) {
     await DesktopTrayService().init();
+  }
+  if (DesktopNotificationPoller.isSupported) {
+    DesktopNotificationPoller().start();
   }
 
   final prefs = await SharedPreferences.getInstance();
