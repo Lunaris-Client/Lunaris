@@ -9,7 +9,7 @@ import 'package:lunaris/core/utils/color_utils.dart';
 class NotificationListView extends ConsumerWidget {
   final String serverUrl;
   final void Function(int topicId, int? postNumber)? onNotificationTap;
-  final void Function(int channelId)? onChatNotificationTap;
+  final void Function(int channelId, {int? messageId})? onChatNotificationTap;
 
   const NotificationListView({
     super.key,
@@ -137,7 +137,7 @@ class NotificationListView extends ConsumerWidget {
         type == NotificationType.chatWatchedThread) {
       final channelId = notification.data.chatChannelId;
       if (channelId != null) {
-        onChatNotificationTap?.call(channelId);
+        onChatNotificationTap?.call(channelId, messageId: notification.data.chatMessageId);
       }
       return;
     }

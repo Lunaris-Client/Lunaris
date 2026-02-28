@@ -12,6 +12,7 @@ import 'package:lunaris/core/models/site_data.dart';
 import 'package:lunaris/core/models/topic.dart';
 import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/core/providers/chat_provider.dart';
+import 'package:lunaris/core/providers/category_unread_provider.dart';
 import 'package:lunaris/core/utils/color_utils.dart';
 import 'package:lunaris/features/categories/category_browser_view.dart';
 import 'package:lunaris/features/feed/feed_filter_bar.dart';
@@ -77,7 +78,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       if (server == null || payload.serverUrl != server.serverUrl) return;
 
       if (payload.type == 'chat' && payload.chatChannelId != null) {
-        _navigateToChatChannel(server, payload.chatChannelId!);
+        _navigateToChatChannel(server, payload.chatChannelId!, targetMessageId: payload.chatMessageId);
       } else if (payload.type == 'notification' && payload.topicId != null) {
         _navigateToTopic(server, payload.topicId!, postNumber: payload.postNumber);
       } else {
@@ -89,7 +90,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   Future<void> _requestPermissionsOnce() async {
     if (_permissionsRequested) return;
     _permissionsRequested = true;
-    await LocalNotificationService().requestPermissions();
+    final granted = await LocalNotificationService().requestPermissions();
+    debugPrint('[Notification] permission granted: $granted');
   }
 
   @override
@@ -119,6 +121,17 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         _selectedCategory = null;
       }
     });
+
+    if (contentIndex == 5) {
+      final server = ref.read(activeServerProvider);
+      if (server != null) {
+        Future.microtask(() {
+          ref
+              .read(chatChannelListProvider(server.serverUrl).notifier)
+              .refresh();
+        });
+      }
+    }
   }
 
   int get _mobileNavIndex {
@@ -159,7 +172,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           topicTitle: topic.title,
           categoriesById: categoriesById,
         ),
-      );
+      ).then((_) => _refreshUnreadCounts(server.serverUrl));
     } else {
       setState(() => _selectedTopic = topic);
     }
@@ -173,6 +186,18 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       _feedShowsTopics = true;
       _currentTab = 0;
     });
+  }
+
+  Map<int, int> _categoryUnreadMap(String serverUrl) {
+    final counts = ref.watch(categoryUnreadProvider(serverUrl));
+    final map = <int, int>{};
+    for (final entry in counts.newPerCategory.entries) {
+      map[entry.key] = (map[entry.key] ?? 0) + entry.value;
+    }
+    for (final entry in counts.unreadPerCategory.entries) {
+      map[entry.key] = (map[entry.key] ?? 0) + entry.value;
+    }
+    return map;
   }
 
   void _openNewMessageComposer() {
@@ -311,6 +336,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
     ref.listen<MessageBusEvent?>(messageBusProvider, (prev, next) {
       if (next == null || !mounted) return;
+      debugPrint('[MessageBus] event: type=${next.type}');
       if (next.type == 'notification_alert' && next.data is Map) {
         _handleNotificationAlert(server, next.data as Map);
       }
@@ -531,6 +557,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           siteData: siteData,
           serverUrl: server.serverUrl,
           onCategorySelected: _onCategoryBrowseSelected,
+          unreadCounts: _categoryUnreadMap(server.serverUrl),
         );
       case 2:
         content = _buildNotificationsTab(server);
@@ -604,6 +631,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         siteData: siteData,
         serverUrl: serverUrl,
         onCategorySelected: _onCategoryBrowseSelected,
+        unreadCounts: _categoryUnreadMap(serverUrl),
         onAllTopicsTap: () => setState(() {
           _feedShowsTopics = true;
           _selectedCategory = null;
@@ -646,8 +674,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       onNotificationTap: (topicId, postNumber) {
         _navigateToTopic(server, topicId, postNumber: postNumber);
       },
-      onChatNotificationTap: (channelId) {
-        _navigateToChatChannel(server, channelId);
+      onChatNotificationTap: (channelId, {int? messageId}) {
+        _navigateToChatChannel(server, channelId, targetMessageId: messageId);
       },
     );
   }
@@ -687,7 +715,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               channel: channel,
             ),
           ),
-        );
+        ).then((_) {
+          ref.read(chatChannelListProvider(server.serverUrl).notifier).refresh();
+        });
       },
       onNewChat: () {
         Navigator.of(context).push(
@@ -736,14 +766,23 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         categoriesById: categoriesById,
         initialPostNumber: postNumber,
       ),
-    );
+    ).then((_) => _refreshUnreadCounts(server.serverUrl));
+  }
+
+  void _refreshUnreadCounts(String serverUrl) {
+    ref.read(badgeCountsProvider(serverUrl).notifier).fetch();
+    ref.read(categoryUnreadProvider(serverUrl).notifier).fetch(force: true);
   }
 
   void _handleNotificationAlert(ServerAccount server, Map data) {
+    debugPrint('[NotificationAlert] data keys: ${data.keys.toList()}, type=${data['notification_type']}');
     final notificationType = data['notification_type'] as int? ?? 0;
     final settings = ref.read(notificationSettingsProvider(server.serverUrl));
 
-    if (!settings.shouldNotify(notificationType)) return;
+    if (!settings.shouldNotify(notificationType)) {
+      debugPrint('[NotificationAlert] filtered out by settings (type=$notificationType)');
+      return;
+    }
 
     final excerpt = data['excerpt'] as String?
         ?? data['fancy_title'] as String?
@@ -755,6 +794,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     final topicId = data['topic_id'] as int?;
     final postNumber = data['post_number'] as int?;
     final chatChannelId = data['chat_channel_id'] as int?;
+    final chatMessageId = data['chat_message_id'] as int?;
 
     final isChatType = const {29, 30, 31, 32, 40}.contains(notificationType);
     final payload = NotificationPayload(
@@ -763,6 +803,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       topicId: topicId,
       postNumber: postNumber,
       chatChannelId: chatChannelId,
+      chatMessageId: chatMessageId,
     );
 
     if (settings.showInAppToasts) {
@@ -781,7 +822,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               label: 'View',
               onPressed: () {
                 if (isChatType && chatChannelId != null) {
-                  _navigateToChatChannel(server, chatChannelId);
+                  _navigateToChatChannel(server, chatChannelId, targetMessageId: chatMessageId);
                 } else if (topicId != null) {
                   _navigateToTopic(server, topicId, postNumber: postNumber);
                 } else {
@@ -805,27 +846,41 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   Future<void> _navigateToChatChannel(
     ServerAccount server,
-    int channelId,
-  ) async {
+    int channelId, {
+    int? targetMessageId,
+  }) async {
     try {
-      final apiKey = await _authService.loadApiKey(server.serverUrl);
-      if (apiKey == null || !mounted) return;
-
-      final json = await _apiClient.fetchChatChannel(
-        server.serverUrl,
-        apiKey,
-        channelId,
+      // Try to find channel in already-loaded local state first
+      final cachedState = ref.read(chatChannelListProvider(server.serverUrl));
+      final cached = cachedState.channels.cast<ChatChannel?>().firstWhere(
+        (c) => c!.id == channelId,
+        orElse: () => null,
       );
-      if (!mounted) return;
 
-      final channelJson = json['channel'] as Map<String, dynamic>? ?? json;
-      final channel = ChatChannel.fromJson(channelJson);
+      ChatChannel channel;
+      if (cached != null) {
+        channel = cached;
+      } else {
+        final apiKey = await _authService.loadApiKey(server.serverUrl);
+        if (apiKey == null || !mounted) return;
+
+        final json = await _apiClient.fetchChatChannel(
+          server.serverUrl,
+          apiKey,
+          channelId,
+        );
+        if (!mounted) return;
+
+        final channelJson = json['channel'] as Map<String, dynamic>? ?? json;
+        channel = ChatChannel.fromJson(channelJson);
+      }
 
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ChatChannelScreen(
             serverUrl: server.serverUrl,
             channel: channel,
+            targetMessageId: targetMessageId,
           ),
         ),
       );

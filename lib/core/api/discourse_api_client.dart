@@ -1,18 +1,94 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:lunaris/core/models/models.dart';
+
+class _TimingInterceptor extends Interceptor {
+  final _pending = <String, DateTime>{};
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final key = '${options.method} ${options.uri}';
+    _pending[key] = DateTime.now();
+    debugPrint('[API] >> ${options.method} ${options.uri}');
+    handler.next(options);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    final opts = response.requestOptions;
+    final key = '${opts.method} ${opts.uri}';
+    final start = _pending.remove(key);
+    final elapsed = start != null
+        ? DateTime.now().difference(start).inMilliseconds
+        : -1;
+    final dataLen = response.data is Map
+        ? (response.data as Map).keys.length
+        : response.data?.toString().length ?? 0;
+    debugPrint('[API] << ${opts.method} ${opts.uri} status=${response.statusCode} ${elapsed}ms keys=$dataLen');
+    handler.next(response);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    final opts = err.requestOptions;
+    final key = '${opts.method} ${opts.uri}';
+    final start = _pending.remove(key);
+    final elapsed = start != null
+        ? DateTime.now().difference(start).inMilliseconds
+        : -1;
+    debugPrint('[API] !! ${opts.method} ${opts.uri} ERROR ${err.type.name} status=${err.response?.statusCode} ${elapsed}ms msg=${err.message}');
+    handler.next(err);
+  }
+}
 
 class _RateLimitInterceptor extends Interceptor {
   final Dio _retryDio;
+  static DateTime? _rateLimitedUntil;
+  static bool _retryInFlight = false;
 
   _RateLimitInterceptor(BaseOptions baseOptions)
       : _retryDio = Dio(baseOptions);
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final until = _rateLimitedUntil;
+    if (until != null && DateTime.now().isBefore(until)) {
+      final remaining = until.difference(DateTime.now()).inSeconds;
+      debugPrint('[API] 429 lockout active (${remaining}s left), skipping: ${options.uri}');
+      handler.reject(
+        DioException(
+          requestOptions: options,
+          error: 'Rate limited — locked out for ${remaining}s',
+          type: DioExceptionType.cancel,
+        ),
+        true,
+      );
+      return;
+    }
+    handler.next(options);
+  }
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     if (err.response?.statusCode == 429) {
       final retryAfter = err.response?.headers.value('retry-after');
       final waitSeconds = int.tryParse(retryAfter ?? '') ?? 10;
+
+      // Set a global lockout so no new requests fire during the window
+      _rateLimitedUntil = DateTime.now().add(Duration(seconds: waitSeconds));
+      debugPrint('[API] 429 rate-limited, locked out for ${waitSeconds}s: ${err.requestOptions.uri}');
+
+      // Only allow one retry at a time to prevent cascading retries
+      if (_retryInFlight) {
+        debugPrint('[API] 429 retry already in-flight, dropping: ${err.requestOptions.uri}');
+        handler.reject(err);
+        return;
+      }
+
+      _retryInFlight = true;
       Future.delayed(Duration(seconds: waitSeconds), () async {
+        _retryInFlight = false;
+        _rateLimitedUntil = null;
         try {
           final options = err.requestOptions;
           final response = await _retryDio.request(
@@ -26,8 +102,10 @@ class _RateLimitInterceptor extends Interceptor {
               contentType: options.contentType,
             ),
           );
+          debugPrint('[API] 429 retry succeeded: ${options.uri}');
           handler.resolve(response);
         } catch (e) {
+          debugPrint('[API] 429 retry failed: ${err.requestOptions.uri}');
           handler.reject(
             e is DioException
                 ? e
@@ -47,12 +125,13 @@ class DiscourseApiClient {
 
   DiscourseApiClient({Dio? dio}) {
     final baseOptions = BaseOptions(
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 30),
       headers: {'Accept': 'application/json'},
     );
     _dio = dio ?? Dio(baseOptions);
     if (dio == null) {
+      _dio.interceptors.add(_TimingInterceptor());
       _dio.interceptors.add(_RateLimitInterceptor(baseOptions));
     }
   }
@@ -650,9 +729,13 @@ class DiscourseApiClient {
     int channelId, {
     required String message,
     int? inReplyToId,
+    List<int>? uploadIds,
   }) async {
     final data = <String, dynamic>{'message': message};
     if (inReplyToId != null) data['in_reply_to_id'] = inReplyToId;
+    if (uploadIds != null && uploadIds.isNotEmpty) {
+      data['upload_ids'] = uploadIds;
+    }
     final response = await _dio.post(
       '$serverUrl/chat/$channelId',
       data: data,
@@ -686,10 +769,15 @@ class DiscourseApiClient {
     int channelId,
     int threadId, {
     required String message,
+    List<int>? uploadIds,
   }) async {
+    final data = <String, dynamic>{'message': message, 'thread_id': threadId};
+    if (uploadIds != null && uploadIds.isNotEmpty) {
+      data['upload_ids'] = uploadIds;
+    }
     final response = await _dio.post(
       '$serverUrl/chat/$channelId',
-      data: {'message': message, 'thread_id': threadId},
+      data: data,
       options: _authHeaders(apiKey),
     );
     return response.data as Map<String, dynamic>;

@@ -29,11 +29,13 @@ final bool _isDesktop = () {
 class ChatChannelScreen extends ConsumerStatefulWidget {
   final String serverUrl;
   final ChatChannel channel;
+  final int? targetMessageId;
 
   const ChatChannelScreen({
     super.key,
     required this.serverUrl,
     required this.channel,
+    this.targetMessageId,
   });
 
   @override
@@ -41,15 +43,18 @@ class ChatChannelScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
-  final _scrollController = ScrollController();
+  final _scrollController = ScrollController(keepScrollOffset: false);
   final _textController = TextEditingController();
   final _focusNode = FocusNode();
   final _unreadSeparatorKey = GlobalKey();
+  final _targetMessageKey = GlobalKey();
   bool _sending = false;
   int? _replyToId;
   String? _replyToUsername;
   bool _showScrollToBottom = false;
+  final List<int> _pendingUploadIds = [];
   late final int? _lastReadMessageId = widget.channel.lastReadMessageId;
+  bool _needsScrollAfterRefresh = true;
 
   List<String> _typingUsers = [];
   Timer? _typingTimer;
@@ -88,11 +93,22 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
           .handleChatChannelMessage(data);
     });
     _messageBusNotifier.subscribeToChatChannel(widget.channel.id);
+
+    debugPrint('[ChatScroll] initState: channelId=${widget.channel.id} lastReadMessageId=$_lastReadMessageId needsScroll=$_needsScrollAfterRefresh keepScrollOffset=${_scrollController.keepScrollOffset}');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(chatMessagesProvider(_params).notifier).refresh();
+    });
+  }
+
+  @override
+  void deactivate() {
+    _markMessagesAsRead();
+    super.deactivate();
   }
 
   @override
   void dispose() {
-    _markMessagesAsRead();
     _typingTimer?.cancel();
     _presencePollTimer?.cancel();
     _messageBusNotifier.unsubscribeFromChatChannel(widget.channel.id);
@@ -105,8 +121,13 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
   }
 
   void _markMessagesAsRead() {
-    ref.read(chatMessagesProvider(_params).notifier).markAllRead();
-    ref.read(chatChannelListProvider(widget.serverUrl).notifier).refresh();
+    final messagesNotifier = ref.read(chatMessagesProvider(_params).notifier);
+    final channelListNotifier =
+        ref.read(chatChannelListProvider(widget.serverUrl).notifier);
+    Future.microtask(() {
+      messagesNotifier.markAllRead();
+      channelListNotifier.markChannelAsRead(widget.channel.id);
+    });
   }
 
   void _onTextChanged() {
@@ -180,43 +201,63 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels <=
-        _scrollController.position.minScrollExtent + 200) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
       ref.read(chatMessagesProvider(_params).notifier).loadMore();
     }
 
-    final atBottom = _scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 100;
+    final atBottom = _scrollController.position.pixels <=
+        _scrollController.position.minScrollExtent + 100;
     if (_showScrollToBottom == atBottom) {
       setState(() => _showScrollToBottom = !atBottom);
     }
   }
 
   void _scrollToBottom() {
+    debugPrint('[ChatScroll] _scrollToBottom called');
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
+      if (!mounted || !_scrollController.hasClients) {
+        debugPrint('[ChatScroll] _scrollToBottom: mounted=$mounted hasClients=${_scrollController.hasClients}');
+        return;
+      }
+      debugPrint('[ChatScroll] _scrollToBottom: pixels=${_scrollController.position.pixels} min=${_scrollController.position.minScrollExtent} max=${_scrollController.position.maxScrollExtent} -> animating to 0');
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  void _scrollToUnread() {
+    debugPrint('[ChatScroll] _scrollToUnread called');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _unreadSeparatorKey.currentContext;
+      debugPrint('[ChatScroll] _scrollToUnread: separatorContext=${ctx != null}');
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.85,
+          duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
       }
     });
   }
 
-  void _scrollToUnread() {
+  void _scrollToTargetMessage() {
+    debugPrint('[ChatScroll] _scrollToTargetMessage called for id=${widget.targetMessageId}');
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ctx = _unreadSeparatorKey.currentContext;
+      if (!mounted) return;
+      final ctx = _targetMessageKey.currentContext;
+      debugPrint('[ChatScroll] _scrollToTargetMessage: targetContext=${ctx != null}');
       if (ctx != null) {
         Scrollable.ensureVisible(
           ctx,
-          alignment: 0.15,
+          alignment: 0.5,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
-        );
-      } else if (_scrollController.hasClients) {
-        _scrollController.jumpTo(
-          _scrollController.position.maxScrollExtent,
         );
       }
     });
@@ -242,6 +283,9 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
           username: account?.username,
           avatarTemplate: account?.avatarTemplate,
           userId: account?.userId,
+          uploadIds: _pendingUploadIds.isNotEmpty
+              ? List<int>.from(_pendingUploadIds)
+              : null,
         );
 
     if (mounted) {
@@ -249,6 +293,7 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
         _sending = false;
         _replyToId = null;
         _replyToUsername = null;
+        _pendingUploadIds.clear();
       });
       _scrollToBottom();
     }
@@ -279,10 +324,12 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
 
       final shortUrl = result['short_url'] as String?;
       final url = result['url'] as String?;
+      final uploadId = result['id'] as int?;
       final imageUrl = shortUrl ?? url;
 
       if (imageUrl != null && mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        if (uploadId != null) _pendingUploadIds.add(uploadId);
         final text = _textController.text;
         final imageMarkdown = '![${picked.name}]($imageUrl)';
         _textController.text =
@@ -543,13 +590,27 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
     final theme = Theme.of(context);
 
     ref.listen(chatMessagesProvider(_params), (prev, next) {
-      if ((prev?.isLoading ?? true) && !next.isLoading && next.messages.isNotEmpty) {
-        _scrollToUnread();
+      debugPrint('[ChatScroll] listen: isLoading=${next.isLoading} msgCount=${next.messages.length} prevMsgCount=${prev?.messages.length} needsScroll=$_needsScrollAfterRefresh showScrollToBottom=$_showScrollToBottom');
+      if (_needsScrollAfterRefresh &&
+          !next.isLoading &&
+          next.messages.isNotEmpty) {
+        _needsScrollAfterRefresh = false;
+        final lastRead = _lastReadMessageId;
+        final hasUnread = lastRead != null &&
+            next.messages.any((m) => m.id > lastRead);
+        debugPrint('[ChatScroll] initial load done: lastRead=$lastRead hasUnread=$hasUnread msgIds=[${next.messages.first.id}..${next.messages.last.id}]');
+        if (widget.targetMessageId != null &&
+            next.messages.any((m) => m.id == widget.targetMessageId)) {
+          _scrollToTargetMessage();
+        } else if (hasUnread) {
+          _scrollToUnread();
+        }
         return;
       }
       if (prev != null &&
           next.messages.length > prev.messages.length &&
           !_showScrollToBottom) {
+        debugPrint('[ChatScroll] new messages arrived, scrolling to bottom');
         _scrollToBottom();
       }
     });
@@ -677,19 +738,21 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
       );
     }
 
+    debugPrint('[ChatScroll] buildMessageList: msgCount=${state.messages.length} isLoading=${state.isLoading} isLoadingMore=${state.isLoadingMore} scrollHasClients=${_scrollController.hasClients} scrollPixels=${_scrollController.hasClients ? _scrollController.position.pixels : "N/A"}');
     return ListView.builder(
       controller: _scrollController,
+      reverse: true,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       itemCount: state.messages.length + (state.isLoadingMore ? 1 : 0),
       itemBuilder: (context, index) {
-        if (state.isLoadingMore && index == 0) {
+        if (state.isLoadingMore && index == state.messages.length) {
           return const Padding(
             padding: EdgeInsets.all(16),
             child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
           );
         }
 
-        final msgIndex = state.isLoadingMore ? index - 1 : index;
+        final msgIndex = state.messages.length - 1 - index;
         final msg = state.messages[msgIndex];
         final prevMsg = msgIndex > 0 ? state.messages[msgIndex - 1] : null;
         final isReply = msg.inReplyToId != null;
@@ -701,10 +764,11 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
         final showDateSeparator = prevMsg == null ||
             !_isSameDay(prevMsg.createdAt, msg.createdAt);
 
-        final showUnreadSeparator = _lastReadMessageId != null &&
+        final lastRead = _lastReadMessageId;
+        final showUnreadSeparator = lastRead != null &&
             prevMsg != null &&
-            prevMsg.id <= _lastReadMessageId &&
-            msg.id > _lastReadMessageId;
+            prevMsg.id <= lastRead &&
+            msg.id > lastRead;
 
         String? replyToUsername;
         String? replyToExcerpt;
@@ -736,7 +800,10 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
 
         final frequentEmojis = _frequentEmojiService.getTopEmojis(6);
 
+        final isTarget = widget.targetMessageId != null && msg.id == widget.targetMessageId;
+
         return Column(
+          key: isTarget ? _targetMessageKey : null,
           mainAxisSize: MainAxisSize.min,
           children: [
             if (showDateSeparator)

@@ -9,6 +9,7 @@ class CategoryBrowserView extends StatelessWidget {
   final String serverUrl;
   final ValueChanged<SiteCategory> onCategorySelected;
   final VoidCallback? onAllTopicsTap;
+  final Map<int, int> unreadCounts;
 
   const CategoryBrowserView({
     super.key,
@@ -16,6 +17,7 @@ class CategoryBrowserView extends StatelessWidget {
     required this.serverUrl,
     required this.onCategorySelected,
     this.onAllTopicsTap,
+    this.unreadCounts = const {},
   });
 
   @override
@@ -48,6 +50,7 @@ class CategoryBrowserView extends StatelessWidget {
           children: children,
           serverUrl: serverUrl,
           onCategorySelected: onCategorySelected,
+          unreadCounts: unreadCounts,
         );
       },
     );
@@ -82,12 +85,14 @@ class _ParentCategoryTile extends StatelessWidget {
   final List<SiteCategory> children;
   final String serverUrl;
   final ValueChanged<SiteCategory> onCategorySelected;
+  final Map<int, int> unreadCounts;
 
   const _ParentCategoryTile({
     required this.category,
     required this.children,
     required this.serverUrl,
     required this.onCategorySelected,
+    this.unreadCounts = const {},
   });
 
   @override
@@ -137,6 +142,10 @@ class _ParentCategoryTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
+                if ((unreadCounts[category.id] ?? 0) > 0)
+                  _UnreadBadge(count: unreadCounts[category.id]!),
+                if ((unreadCounts[category.id] ?? 0) > 0)
+                  const SizedBox(width: 6),
                 _TopicCountBadge(count: category.topicCount),
                 const SizedBox(width: 4),
                 Icon(
@@ -159,6 +168,7 @@ class _ParentCategoryTile extends StatelessWidget {
                   _ChildCategoryTile(
                     category: child,
                     onCategorySelected: onCategorySelected,
+                    unreadCount: unreadCounts[child.id] ?? 0,
                   ),
               ],
             ),
@@ -230,10 +240,12 @@ class _ParentCategoryTile extends StatelessWidget {
 class _ChildCategoryTile extends StatelessWidget {
   final SiteCategory category;
   final ValueChanged<SiteCategory> onCategorySelected;
+  final int unreadCount;
 
   const _ChildCategoryTile({
     required this.category,
     required this.onCategorySelected,
+    this.unreadCount = 0,
   });
 
   @override
@@ -259,6 +271,10 @@ class _ChildCategoryTile extends StatelessWidget {
             Expanded(
               child: Text(category.name, style: theme.textTheme.bodyMedium),
             ),
+            if (unreadCount > 0) ...[          
+              _UnreadBadge(count: unreadCount),
+              const SizedBox(width: 6),
+            ],
             _TopicCountBadge(count: category.topicCount),
           ],
         ),
@@ -285,6 +301,31 @@ class _TopicCountBadge extends StatelessWidget {
         formatCount(count),
         style: theme.textTheme.labelSmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+class _UnreadBadge extends StatelessWidget {
+  final int count;
+
+  const _UnreadBadge({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        formatCount(count),
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.onPrimary,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

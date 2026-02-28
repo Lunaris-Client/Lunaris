@@ -29,6 +29,7 @@ class NotificationPayload {
   final int? topicId;
   final int? postNumber;
   final int? chatChannelId;
+  final int? chatMessageId;
 
   const NotificationPayload({
     required this.serverUrl,
@@ -36,6 +37,7 @@ class NotificationPayload {
     this.topicId,
     this.postNumber,
     this.chatChannelId,
+    this.chatMessageId,
   });
 
   String encode() => jsonEncode({
@@ -44,6 +46,7 @@ class NotificationPayload {
     if (topicId != null) 'topicId': topicId,
     if (postNumber != null) 'postNumber': postNumber,
     if (chatChannelId != null) 'chatChannelId': chatChannelId,
+    if (chatMessageId != null) 'chatMessageId': chatMessageId,
   });
 
   static NotificationPayload? decode(String? raw) {
@@ -56,6 +59,7 @@ class NotificationPayload {
         topicId: map['topicId'] as int?,
         postNumber: map['postNumber'] as int?,
         chatChannelId: map['chatChannelId'] as int?,
+        chatMessageId: map['chatMessageId'] as int?,
       );
     } catch (_) {
       return null;
@@ -186,7 +190,9 @@ class LocalNotificationService {
     const mentionTypes = {1, 3, 15};
     const likeTypes = {5, 19};
     const messageTypes = {6, 7, 16};
+    const chatTypes = {29, 30, 31, 32, 40};
 
+    if (chatTypes.contains(notificationType)) return NotificationChannel.chat;
     if (replyTypes.contains(notificationType)) return NotificationChannel.replies;
     if (mentionTypes.contains(notificationType)) return NotificationChannel.mentions;
     if (likeTypes.contains(notificationType)) return NotificationChannel.likes;
@@ -201,10 +207,16 @@ class LocalNotificationService {
     int? notificationType,
     NotificationChannel? channel,
   }) async {
-    if (!_initialized) return;
+    if (!_initialized) {
+      debugPrint('[Notification] show() called but not initialized');
+      return;
+    }
 
     final effectiveChannel = channel
         ?? (notificationType != null ? _channelForType(notificationType) : NotificationChannel.general);
+
+    debugPrint('[Notification] show: title="$title" body="${body.length > 60 ? '${body.substring(0, 60)}...' : body}" '
+        'type=$notificationType channel=${effectiveChannel.id}');
 
     final androidDetails = AndroidNotificationDetails(
       effectiveChannel.id,
@@ -225,13 +237,17 @@ class LocalNotificationService {
       linux: linuxDetails,
     );
 
-    await _plugin.show(
-      _generateId(),
-      title,
-      body,
-      details,
-      payload: payload?.encode(),
-    );
+    try {
+      await _plugin.show(
+        _generateId(),
+        title,
+        body,
+        details,
+        payload: payload?.encode(),
+      );
+    } catch (e) {
+      debugPrint('[Notification] show() error: $e');
+    }
   }
 
   Future<void> cancelAll() async {

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lunaris/core/auth/auth_service.dart';
 import 'package:lunaris/core/models/server_account.dart';
 import 'package:lunaris/core/providers/badge_counts_provider.dart';
+import 'package:lunaris/core/providers/category_unread_provider.dart';
 import 'package:lunaris/core/providers/notification_provider.dart';
 import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/core/services/message_bus_client.dart';
@@ -75,6 +76,7 @@ class MessageBusManager extends StateNotifier<MessageBusEvent?> {
     final serverUrl = _activeServerUrl;
     if (serverUrl != null) {
       _ref.read(badgeCountsProvider(serverUrl).notifier).fetch();
+      _ref.read(categoryUnreadProvider(serverUrl).notifier).fetch();
     }
     state = MessageBusEvent(type: 'unread', data: msg.data);
   }
@@ -83,6 +85,7 @@ class MessageBusManager extends StateNotifier<MessageBusEvent?> {
     final serverUrl = _activeServerUrl;
     if (serverUrl != null) {
       _ref.read(badgeCountsProvider(serverUrl).notifier).fetch();
+      _ref.read(categoryUnreadProvider(serverUrl).notifier).fetch();
     }
     state = MessageBusEvent(type: 'new_topic', data: msg.data);
   }

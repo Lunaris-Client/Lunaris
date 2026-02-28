@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lunaris/core/api/discourse_api_client.dart';
 import 'package:lunaris/core/auth/auth_service.dart';
@@ -51,19 +52,37 @@ class ChatChannelListNotifier extends StateNotifier<ChatChannelListState> {
   final DiscourseApiClient _apiClient;
   final AuthService _authService;
   final String _serverUrl;
+  DateTime? _lastFetchTime;
+  static const _fetchCooldown = Duration(seconds: 5);
 
   ChatChannelListNotifier(this._apiClient, this._authService, this._serverUrl)
       : super(const ChatChannelListState()) {
-    fetch();
+    fetch(force: true);
   }
 
-  Future<void> fetch() async {
+  Future<void> fetch({bool force = false}) async {
+    if (!force && _lastFetchTime != null) {
+      final elapsed = DateTime.now().difference(_lastFetchTime!);
+      if (elapsed < _fetchCooldown) {
+        debugPrint('[ChatChannels] fetch: skipped (cooldown ${elapsed.inMilliseconds}ms < ${_fetchCooldown.inMilliseconds}ms)');
+        return;
+      }
+    }
     try {
       state = state.copyWith(isLoading: true, clearError: true);
+      debugPrint('[ChatChannels] fetch: loading apiKey...');
       final apiKey = await _authService.loadApiKey(_serverUrl);
-      if (apiKey == null) return;
+      if (apiKey == null) {
+        debugPrint('[ChatChannels] fetch: apiKey is null, aborting');
+        if (mounted) state = state.copyWith(isLoading: false);
+        return;
+      }
 
+      debugPrint('[ChatChannels] fetch: calling API...');
+      final sw = Stopwatch()..start();
       final data = await _apiClient.fetchChatChannels(_serverUrl, apiKey);
+      sw.stop();
+      debugPrint('[ChatChannels] fetch: API responded in ${sw.elapsedMilliseconds}ms, keys=${data.keys.toList()}');
       final publicJson =
           data['public_channels'] as List<dynamic>? ?? [];
       final dmJson =
@@ -90,68 +109,30 @@ class ChatChannelListNotifier extends StateNotifier<ChatChannelListState> {
         );
       }).toList();
 
+      debugPrint('[ChatChannels] fetch: parsed ${channels.length} channels (${publicJson.length} public + ${dmJson.length} dm)');
       if (!mounted) return;
+      _lastFetchTime = DateTime.now();
       state = state.copyWith(channels: channels, isLoading: false);
-
-      _enrichLastMessageSenders(channels, apiKey);
     } catch (e) {
+      debugPrint('[ChatChannels] fetch: ERROR $e');
       if (!mounted) return;
       state = state.copyWith(error: e, isLoading: false);
     }
   }
 
-  Future<void> _enrichLastMessageSenders(
-    List<ChatChannel> channels,
-    String apiKey,
-  ) async {
-    final toEnrich =
-        channels.where((c) => c.lastMessage != null).toList();
-    if (toEnrich.isEmpty) return;
-
-    final futures = toEnrich.map((channel) async {
-      try {
-        final data = await _apiClient.fetchChatMessages(
-          _serverUrl,
-          apiKey,
-          channel.id,
-          pageSize: 1,
-        );
-        final msgs = data['messages'] as List<dynamic>? ?? [];
-        if (msgs.isEmpty) return null;
-        final msg = ChatMessage.fromJson(msgs.last as Map<String, dynamic>);
-        return MapEntry(channel.id, msg);
-      } catch (_) {
-        return null;
-      }
-    });
-
-    final results = await Future.wait(futures);
+  void markChannelAsRead(int channelId) {
     if (!mounted) return;
-
-    final enriched = <int, ChatMessage>{};
-    for (final entry in results) {
-      if (entry != null) enriched[entry.key] = entry.value;
-    }
-    if (enriched.isEmpty) return;
-
-    final updated = state.channels.map((channel) {
-      final msg = enriched[channel.id];
-      if (msg != null && channel.lastMessage != null) {
-        return channel.copyWith(
-          lastMessage: channel.lastMessage!.copyWith(
-            username: msg.username,
-            userId: msg.userId,
-          ),
-        );
-      }
-      return channel;
-    }).toList();
-
-    if (!mounted) return;
-    state = state.copyWith(channels: updated);
+    state = state.copyWith(
+      channels: state.channels.map((c) {
+        if (c.id == channelId) {
+          return c.copyWith(unreadCount: 0, unreadMentions: 0);
+        }
+        return c;
+      }).toList(),
+    );
   }
 
-  Future<void> refresh() async => fetch();
+  Future<void> refresh({bool force = false}) async => fetch(force: force);
 }
 
 class ChatMessagesState {
@@ -222,24 +203,32 @@ class ChatMessagesNotifier extends StateNotifier<ChatMessagesState> {
   final ChatMessagesParams _params;
 
   ChatMessagesNotifier(this._apiClient, this._authService, this._params)
-      : super(const ChatMessagesState()) {
-    fetch();
-  }
+      : super(const ChatMessagesState());
 
   Future<void> fetch() async {
     try {
+      debugPrint('[ChatMessages] fetch: ch=${_params.channelId} loading apiKey...');
       state = state.copyWith(isLoading: true, clearError: true);
       final apiKey = await _authService.loadApiKey(_params.serverUrl);
-      if (apiKey == null) return;
+      if (apiKey == null) {
+        debugPrint('[ChatMessages] fetch: ch=${_params.channelId} apiKey is null, aborting');
+        if (mounted) state = state.copyWith(isLoading: false);
+        return;
+      }
 
+      debugPrint('[ChatMessages] fetch: ch=${_params.channelId} calling API...');
+      final sw = Stopwatch()..start();
       final data = await _apiClient.fetchChatMessages(
         _params.serverUrl,
         apiKey,
         _params.channelId,
         pageSize: 50,
       );
+      sw.stop();
+      debugPrint('[ChatMessages] fetch: ch=${_params.channelId} API responded in ${sw.elapsedMilliseconds}ms, dataKeys=${data.keys.toList()}');
 
       final messagesJson = data['messages'] as List<dynamic>? ?? [];
+      debugPrint('[ChatMessages] fetch: ch=${_params.channelId} parsed ${messagesJson.length} messages');
       final messages = messagesJson
           .map((m) => ChatMessage.fromJson(m as Map<String, dynamic>))
           .toList()
@@ -253,8 +242,14 @@ class ChatMessagesNotifier extends StateNotifier<ChatMessagesState> {
       );
 
     } catch (e) {
+      debugPrint('[ChatMessages] fetch: ch=${_params.channelId} ERROR ${e.runtimeType}: $e');
       if (!mounted) return;
-      state = state.copyWith(error: e, isLoading: false);
+      // If we already have cached messages, keep showing them instead of error
+      if (state.messages.isNotEmpty) {
+        state = state.copyWith(isLoading: false);
+      } else {
+        state = state.copyWith(error: e, isLoading: false);
+      }
     }
   }
 
@@ -297,6 +292,7 @@ class ChatMessagesNotifier extends StateNotifier<ChatMessagesState> {
     String? username,
     String? avatarTemplate,
     int? userId,
+    List<int>? uploadIds,
   }) async {
     try {
       final apiKey = await _authService.loadApiKey(_params.serverUrl);
@@ -308,6 +304,7 @@ class ChatMessagesNotifier extends StateNotifier<ChatMessagesState> {
         _params.channelId,
         message: text,
         inReplyToId: inReplyToId,
+        uploadIds: uploadIds,
       );
 
       if (mounted) {
@@ -333,8 +330,16 @@ class ChatMessagesNotifier extends StateNotifier<ChatMessagesState> {
 
   void addMessage(ChatMessage message) {
     if (!mounted) return;
-    final exists = state.messages.any((m) => m.id == message.id);
-    if (exists) return;
+    final idx = state.messages.indexWhere((m) => m.id == message.id);
+    if (idx >= 0) {
+      final existing = state.messages[idx];
+      if (existing.cooked == null && message.cooked != null) {
+        final updated = List<ChatMessage>.from(state.messages);
+        updated[idx] = message;
+        state = state.copyWith(messages: updated);
+      }
+      return;
+    }
     state = state.copyWith(messages: [...state.messages, message]);
   }
 
@@ -664,8 +669,16 @@ class ThreadMessagesNotifier extends StateNotifier<ChatMessagesState> {
 
   void addMessage(ChatMessage message) {
     if (!mounted) return;
-    final exists = state.messages.any((m) => m.id == message.id);
-    if (exists) return;
+    final idx = state.messages.indexWhere((m) => m.id == message.id);
+    if (idx >= 0) {
+      final existing = state.messages[idx];
+      if (existing.cooked == null && message.cooked != null) {
+        final updated = List<ChatMessage>.from(state.messages);
+        updated[idx] = message;
+        state = state.copyWith(messages: updated);
+      }
+      return;
+    }
     state = state.copyWith(messages: [...state.messages, message]);
   }
 
