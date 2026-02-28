@@ -40,7 +40,6 @@ Future<void> _pollAllServers() async {
 
   final accounts = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
 
-  int notifId = 1000;
   for (final account in accounts) {
     if (account['isAuthenticated'] != true) continue;
 
@@ -77,11 +76,13 @@ Future<void> _pollAllServers() async {
 
       if (unreadCount > lastUnread && unreadCount > 0) {
         await notifService.show(
-          id: notifId++,
           title: siteName,
           body:
               '$unreadCount unread notification${unreadCount == 1 ? '' : 's'}',
-          payload: serverUrl,
+          payload: NotificationPayload(
+            serverUrl: serverUrl,
+            type: 'notification',
+          ),
         );
       }
 
@@ -101,7 +102,7 @@ class BackgroundNotificationService {
 
     await Workmanager().initialize(
       backgroundCallbackDispatcher,
-      isInDebugMode: kDebugMode,
+      isInDebugMode: false,
     );
     _initialized = true;
   }

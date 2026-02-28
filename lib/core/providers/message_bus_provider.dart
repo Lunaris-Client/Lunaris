@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lunaris/core/auth/auth_service.dart';
 import 'package:lunaris/core/models/server_account.dart';
+import 'package:lunaris/core/providers/badge_counts_provider.dart';
 import 'package:lunaris/core/providers/notification_provider.dart';
 import 'package:lunaris/core/providers/providers.dart';
 import 'package:lunaris/core/services/message_bus_client.dart';
@@ -42,10 +43,10 @@ class MessageBusManager extends StateNotifier<MessageBusEvent?> {
 
     _client!.subscribe('/notification/$userId', startPos, _onNotification);
     _client!.subscribe('/notification-alert/$userId', -1, _onNotificationAlert);
+    _client!.subscribe('/chat/notification-alert/$userId', -1, _onChatNotificationAlert);
     _client!.subscribe('/unread/$userId', -1, _onUnread);
     _client!.subscribe('/new', -1, _onNew);
     _client!.subscribe('/latest', -1, _onLatest);
-    _client!.subscribe('/chat/$userId/new-messages', -1, _onChatMessage);
 
     _client!.start();
   }
@@ -62,6 +63,7 @@ class MessageBusManager extends StateNotifier<MessageBusEvent?> {
 
     _updateChannelPosition(serverUrl, msg.messageId);
     _ref.read(notificationListProvider(serverUrl).notifier).refresh();
+    _ref.read(badgeCountsProvider(serverUrl).notifier).fetch();
     state = MessageBusEvent(type: 'notification', data: msg.data);
   }
 
@@ -70,10 +72,18 @@ class MessageBusManager extends StateNotifier<MessageBusEvent?> {
   }
 
   void _onUnread(MessageBusMessage msg) {
+    final serverUrl = _activeServerUrl;
+    if (serverUrl != null) {
+      _ref.read(badgeCountsProvider(serverUrl).notifier).fetch();
+    }
     state = MessageBusEvent(type: 'unread', data: msg.data);
   }
 
   void _onNew(MessageBusMessage msg) {
+    final serverUrl = _activeServerUrl;
+    if (serverUrl != null) {
+      _ref.read(badgeCountsProvider(serverUrl).notifier).fetch();
+    }
     state = MessageBusEvent(type: 'new_topic', data: msg.data);
   }
 
@@ -81,8 +91,14 @@ class MessageBusManager extends StateNotifier<MessageBusEvent?> {
     state = MessageBusEvent(type: 'latest', data: msg.data);
   }
 
-  void _onChatMessage(MessageBusMessage msg) {
-    state = MessageBusEvent(type: 'chat_message', data: msg.data);
+  void _onChatNotificationAlert(MessageBusMessage msg) {
+    final data = msg.data is Map<String, dynamic>
+        ? Map<String, dynamic>.from(msg.data as Map<String, dynamic>)
+        : <String, dynamic>{};
+    if (data.containsKey('channel_id') && !data.containsKey('chat_channel_id')) {
+      data['chat_channel_id'] = data['channel_id'];
+    }
+    state = MessageBusEvent(type: 'notification_alert', data: data);
   }
 
   void subscribeToTopic(int topicId) {

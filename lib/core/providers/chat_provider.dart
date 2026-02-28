@@ -34,6 +34,8 @@ class ChatChannelListState {
   List<ChatChannel> get directMessages =>
       channels.where((c) => c.isDirectMessage).toList();
 
+  int get totalUnreadCount =>
+      channels.fold(0, (sum, c) => sum + (c.unreadCount ?? 0));
 }
 
 final chatChannelListProvider = StateNotifierProvider.family<
@@ -66,19 +68,87 @@ class ChatChannelListNotifier extends StateNotifier<ChatChannelListState> {
           data['public_channels'] as List<dynamic>? ?? [];
       final dmJson =
           data['direct_message_channels'] as List<dynamic>? ?? [];
-      final channels = [
+
+      final tracking = data['tracking'] as Map<String, dynamic>? ?? {};
+      final channelTracking =
+          tracking['channel_tracking'] as Map<String, dynamic>? ?? {};
+
+      var channels = [
         ...publicJson
             .map((c) => ChatChannel.fromJson(c as Map<String, dynamic>)),
         ...dmJson
             .map((c) => ChatChannel.fromJson(c as Map<String, dynamic>)),
       ];
 
+      channels = channels.map((channel) {
+        final info =
+            channelTracking[channel.id.toString()] as Map<String, dynamic>?;
+        if (info == null) return channel;
+        return channel.copyWith(
+          unreadCount: info['unread_count'] as int? ?? 0,
+          unreadMentions: info['mention_count'] as int? ?? 0,
+        );
+      }).toList();
+
       if (!mounted) return;
       state = state.copyWith(channels: channels, isLoading: false);
+
+      _enrichLastMessageSenders(channels, apiKey);
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(error: e, isLoading: false);
     }
+  }
+
+  Future<void> _enrichLastMessageSenders(
+    List<ChatChannel> channels,
+    String apiKey,
+  ) async {
+    final toEnrich =
+        channels.where((c) => c.lastMessage != null).toList();
+    if (toEnrich.isEmpty) return;
+
+    final futures = toEnrich.map((channel) async {
+      try {
+        final data = await _apiClient.fetchChatMessages(
+          _serverUrl,
+          apiKey,
+          channel.id,
+          pageSize: 1,
+        );
+        final msgs = data['messages'] as List<dynamic>? ?? [];
+        if (msgs.isEmpty) return null;
+        final msg = ChatMessage.fromJson(msgs.last as Map<String, dynamic>);
+        return MapEntry(channel.id, msg);
+      } catch (_) {
+        return null;
+      }
+    });
+
+    final results = await Future.wait(futures);
+    if (!mounted) return;
+
+    final enriched = <int, ChatMessage>{};
+    for (final entry in results) {
+      if (entry != null) enriched[entry.key] = entry.value;
+    }
+    if (enriched.isEmpty) return;
+
+    final updated = state.channels.map((channel) {
+      final msg = enriched[channel.id];
+      if (msg != null && channel.lastMessage != null) {
+        return channel.copyWith(
+          lastMessage: channel.lastMessage!.copyWith(
+            username: msg.username,
+            userId: msg.userId,
+          ),
+        );
+      }
+      return channel;
+    }).toList();
+
+    if (!mounted) return;
+    state = state.copyWith(channels: updated);
   }
 
   Future<void> refresh() async => fetch();
@@ -182,9 +252,6 @@ class ChatMessagesNotifier extends StateNotifier<ChatMessagesState> {
         hasMore: messagesJson.length >= 50,
       );
 
-      if (messages.isNotEmpty) {
-        _markRead(apiKey, messages.last.id);
-      }
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(error: e, isLoading: false);
@@ -462,6 +529,13 @@ class ChatMessagesNotifier extends StateNotifier<ChatMessagesState> {
         return m.copyWith(reactions: reactions);
       }).toList(),
     );
+  }
+
+  Future<void> markAllRead() async {
+    if (state.messages.isEmpty) return;
+    final apiKey = await _authService.loadApiKey(_params.serverUrl);
+    if (apiKey == null) return;
+    await _markRead(apiKey, state.messages.last.id);
   }
 
   Future<void> _markRead(String apiKey, int messageId) async {

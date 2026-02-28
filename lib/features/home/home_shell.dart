@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lunaris/app/router.dart';
+import 'package:lunaris/core/api/discourse_api_client.dart';
+import 'package:lunaris/core/auth/auth_service.dart';
 import 'package:lunaris/core/layout/breakpoints.dart';
 import 'package:lunaris/core/models/server_account.dart';
 import 'package:lunaris/core/models/site_category.dart';
 import 'package:lunaris/core/models/site_data.dart';
 import 'package:lunaris/core/models/topic.dart';
 import 'package:lunaris/core/providers/providers.dart';
+import 'package:lunaris/core/providers/chat_provider.dart';
 import 'package:lunaris/core/utils/color_utils.dart';
 import 'package:lunaris/features/categories/category_browser_view.dart';
 import 'package:lunaris/features/feed/feed_filter_bar.dart';
@@ -19,6 +22,7 @@ import 'package:lunaris/features/home/sidebar_navigation.dart';
 import 'package:lunaris/core/providers/message_bus_provider.dart';
 import 'package:lunaris/core/providers/notification_provider.dart';
 import 'package:lunaris/core/providers/notification_settings_provider.dart';
+import 'package:lunaris/core/providers/badge_counts_provider.dart';
 import 'package:lunaris/core/services/local_notification_service.dart';
 import 'package:lunaris/features/bookmarks/bookmark_list_view.dart';
 import 'package:lunaris/features/composer/new_topic_composer_screen.dart';
@@ -51,10 +55,42 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   String _selectedPeriod = 'all';
   Topic? _selectedTopic;
   String? _connectedServerUrl;
-  late final _messageBusNotifier = ref.read(messageBusProvider.notifier);
-  late final _apiClient = ref.read(discourseApiClientProvider);
-  late final _authService = ref.read(authServiceProvider);
+  late final MessageBusManager _messageBusNotifier;
+  late final DiscourseApiClient _apiClient;
+  late final AuthService _authService;
   bool _feedShowsTopics = false;
+  bool _permissionsRequested = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _messageBusNotifier = ref.read(messageBusProvider.notifier);
+    _apiClient = ref.read(discourseApiClientProvider);
+    _authService = ref.read(authServiceProvider);
+    _wireNotificationTap();
+  }
+
+  void _wireNotificationTap() {
+    LocalNotificationService().onNotificationTap = (payload) {
+      if (!mounted) return;
+      final server = ref.read(activeServerProvider);
+      if (server == null || payload.serverUrl != server.serverUrl) return;
+
+      if (payload.type == 'chat' && payload.chatChannelId != null) {
+        _navigateToChatChannel(server, payload.chatChannelId!);
+      } else if (payload.type == 'notification' && payload.topicId != null) {
+        _navigateToTopic(server, payload.topicId!, postNumber: payload.postNumber);
+      } else {
+        setState(() => _currentTab = 2);
+      }
+    };
+  }
+
+  Future<void> _requestPermissionsOnce() async {
+    if (_permissionsRequested) return;
+    _permissionsRequested = true;
+    await LocalNotificationService().requestPermissions();
+  }
 
   @override
   void dispose() {
@@ -269,58 +305,14 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       _connectedServerUrl = server.serverUrl;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ref.read(messageBusProvider.notifier).connect(server);
+        _requestPermissionsOnce();
       });
     }
 
     ref.listen<MessageBusEvent?>(messageBusProvider, (prev, next) {
       if (next == null || !mounted) return;
       if (next.type == 'notification_alert' && next.data is Map) {
-        final data = next.data as Map;
-        final notificationType = data['notification_type'] as int? ?? 0;
-        final settings = ref.read(
-          notificationSettingsProvider(server.serverUrl),
-        );
-
-        if (!settings.shouldNotify(notificationType)) return;
-
-        final excerpt =
-            data['excerpt'] as String? ??
-            data['fancy_title'] as String? ??
-            'New notification';
-        final username = data['username'] as String? ?? '';
-        final displayText =
-            username.isNotEmpty ? '$username: $excerpt' : excerpt;
-
-        if (settings.showInAppToasts) {
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              SnackBar(
-                content: Text(
-                  displayText,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 4),
-                action: SnackBarAction(
-                  label: 'View',
-                  onPressed: () {
-                    setState(() => _currentTab = 2);
-                  },
-                ),
-              ),
-            );
-        }
-
-        if (settings.showSystemNotifications) {
-          LocalNotificationService().show(
-            id: notificationType + DateTime.now().millisecond,
-            title: server.siteName,
-            body: displayText,
-            payload: server.serverUrl,
-          );
-        }
+        _handleNotificationAlert(server, next.data as Map);
       }
     });
 
@@ -482,14 +474,26 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                 labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
                 height: 56,
                 destinations: [
-                  const NavigationDestination(
-                    icon: Icon(Icons.forum_outlined),
-                    selectedIcon: Icon(Icons.forum_rounded),
+                  NavigationDestination(
+                    icon: _ChatBadge(
+                      serverUrl: server.serverUrl,
+                      icon: Icons.forum_outlined,
+                    ),
+                    selectedIcon: _ChatBadge(
+                      serverUrl: server.serverUrl,
+                      icon: Icons.forum_rounded,
+                    ),
                     label: 'Chat',
                   ),
-                  const NavigationDestination(
-                    icon: Icon(Icons.newspaper_rounded),
-                    selectedIcon: Icon(Icons.newspaper_rounded),
+                  NavigationDestination(
+                    icon: _FeedBadge(
+                      serverUrl: server.serverUrl,
+                      icon: Icons.newspaper_rounded,
+                    ),
+                    selectedIcon: _FeedBadge(
+                      serverUrl: server.serverUrl,
+                      icon: Icons.newspaper_rounded,
+                    ),
                     label: 'Feed',
                   ),
                   NavigationDestination(
@@ -551,6 +555,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     final unreadCount =
         ref.watch(notificationListProvider(server.serverUrl)).unreadCount;
 
+    final chatUnreadCount =
+        ref.watch(chatChannelListProvider(server.serverUrl)).totalUnreadCount;
+
+    final badges = ref.watch(badgeCountsProvider(server.serverUrl));
+
     return Row(
       children: [
         SidebarNavigation(
@@ -559,6 +568,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           extended: breakpoint == LayoutBreakpoint.desktop,
           activeServer: breakpoint == LayoutBreakpoint.desktop ? server : null,
           notificationBadgeCount: unreadCount,
+          chatBadgeCount: chatUnreadCount,
+          feedBadgeCount: badges.feedBadgeCount,
+          messagesBadgeCount: badges.unreadPersonalMessages,
           showReviewQueue: server.isAdmin || server.isModerator,
           onAvatarTap: server.username != null && server.username!.isNotEmpty
               ? () => _openUserProfile(server, server.username!)
@@ -727,6 +739,70 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     );
   }
 
+  void _handleNotificationAlert(ServerAccount server, Map data) {
+    final notificationType = data['notification_type'] as int? ?? 0;
+    final settings = ref.read(notificationSettingsProvider(server.serverUrl));
+
+    if (!settings.shouldNotify(notificationType)) return;
+
+    final excerpt = data['excerpt'] as String?
+        ?? data['fancy_title'] as String?
+        ?? data['translated_title'] as String?
+        ?? 'New notification';
+    final username = data['username'] as String? ?? '';
+    final displayText = username.isNotEmpty ? '$username: $excerpt' : excerpt;
+
+    final topicId = data['topic_id'] as int?;
+    final postNumber = data['post_number'] as int?;
+    final chatChannelId = data['chat_channel_id'] as int?;
+
+    final isChatType = const {29, 30, 31, 32, 40}.contains(notificationType);
+    final payload = NotificationPayload(
+      serverUrl: server.serverUrl,
+      type: isChatType ? 'chat' : 'notification',
+      topicId: topicId,
+      postNumber: postNumber,
+      chatChannelId: chatChannelId,
+    );
+
+    if (settings.showInAppToasts) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              displayText,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'View',
+              onPressed: () {
+                if (isChatType && chatChannelId != null) {
+                  _navigateToChatChannel(server, chatChannelId);
+                } else if (topicId != null) {
+                  _navigateToTopic(server, topicId, postNumber: postNumber);
+                } else {
+                  setState(() => _currentTab = 2);
+                }
+              },
+            ),
+          ),
+        );
+    }
+
+    if (settings.showSystemNotifications) {
+      LocalNotificationService().show(
+        title: server.siteName,
+        body: displayText,
+        notificationType: notificationType,
+        payload: payload,
+      );
+    }
+  }
+
   Future<void> _navigateToChatChannel(
     ServerAccount server,
     int channelId,
@@ -764,6 +840,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   Widget _buildMoreTab(ServerAccount server, SiteData siteData) {
     final theme = Theme.of(context);
+    final badges = ref.watch(badgeCountsProvider(server.serverUrl));
     final avatarUrl =
         server.avatarTemplate != null
             ? resolveAvatarUrl(server.serverUrl, server.avatarTemplate!, size: 80)
@@ -798,6 +875,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         _MoreMenuItem(
           icon: Icons.mail_rounded,
           label: 'Messages',
+          badgeCount: badges.unreadPersonalMessages,
           onTap: () => setState(() {
             _currentTab = 4;
             _selectedTopic = null;
@@ -884,6 +962,35 @@ class _NotificationBadge extends ConsumerWidget {
     final unread = ref.watch(notificationListProvider(serverUrl)).unreadCount;
     if (unread == 0) return Icon(icon);
     return Badge.count(count: unread, child: Icon(icon));
+  }
+}
+
+class _ChatBadge extends ConsumerWidget {
+  final String serverUrl;
+  final IconData icon;
+
+  const _ChatBadge({required this.serverUrl, required this.icon});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unread = ref.watch(chatChannelListProvider(serverUrl)).totalUnreadCount;
+    if (unread == 0) return Icon(icon);
+    return Badge.count(count: unread, child: Icon(icon));
+  }
+}
+
+class _FeedBadge extends ConsumerWidget {
+  final String serverUrl;
+  final IconData icon;
+
+  const _FeedBadge({required this.serverUrl, required this.icon});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final badges = ref.watch(badgeCountsProvider(serverUrl));
+    final count = badges.feedBadgeCount;
+    if (count == 0) return Icon(icon);
+    return Badge.count(count: count, child: Icon(icon));
   }
 }
 
@@ -1002,18 +1109,23 @@ class _MoreMenuItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final int badgeCount;
 
   const _MoreMenuItem({
     required this.icon,
     required this.label,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final iconWidget = Icon(icon, color: theme.colorScheme.onSurfaceVariant);
     return ListTile(
-      leading: Icon(icon, color: theme.colorScheme.onSurfaceVariant),
+      leading: badgeCount > 0
+          ? Badge.count(count: badgeCount, child: iconWidget)
+          : iconWidget,
       title: Text(label),
       onTap: onTap,
       visualDensity: VisualDensity.compact,

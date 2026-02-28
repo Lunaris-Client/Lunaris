@@ -381,6 +381,17 @@ class DiscourseApiClient {
     );
   }
 
+  Future<Map<String, dynamic>> fetchNotificationTotals(
+    String serverUrl,
+    String apiKey,
+  ) async {
+    final response = await _dio.get(
+      '$serverUrl/notifications/totals.json',
+      options: _authHeaders(apiKey),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> createPost(
     String serverUrl,
     String apiKey, {

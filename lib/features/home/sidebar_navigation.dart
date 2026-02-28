@@ -9,6 +9,9 @@ class SidebarNavigation extends StatelessWidget {
   final bool extended;
   final ServerAccount? activeServer;
   final int notificationBadgeCount;
+  final int chatBadgeCount;
+  final int feedBadgeCount;
+  final int messagesBadgeCount;
   final VoidCallback? onAvatarTap;
   final bool showReviewQueue;
 
@@ -19,6 +22,9 @@ class SidebarNavigation extends StatelessWidget {
     this.extended = false,
     this.activeServer,
     this.notificationBadgeCount = 0,
+    this.chatBadgeCount = 0,
+    this.feedBadgeCount = 0,
+    this.messagesBadgeCount = 0,
     this.onAvatarTap,
     this.showReviewQueue = false,
   });
@@ -37,6 +43,9 @@ class SidebarNavigation extends StatelessWidget {
   ];
 
   static const _notificationIndex = 3;
+  static const _chatIndex = 0;
+  static const _feedIndex = 1;
+  static const _messagesIndex = 5;
 
   static const _reviewDest = (Icons.shield_outlined, Icons.shield_rounded, 'Review');
 
@@ -65,18 +74,26 @@ class SidebarNavigation extends StatelessWidget {
       destinations: [
         for (var i = 0; i < destinations.length; i++)
           NavigationRailDestination(
-            icon: _badgedIcon(destinations[i].$1, i == _notificationIndex),
-            selectedIcon: _badgedIcon(destinations[i].$2, i == _notificationIndex),
+            icon: _badgedIcon(destinations[i].$1, _badgeCountFor(i)),
+            selectedIcon: _badgedIcon(destinations[i].$2, _badgeCountFor(i)),
             label: Text(destinations[i].$3),
           ),
       ],
     );
   }
 
-  Widget _badgedIcon(IconData iconData, bool showBadge) {
+  int _badgeCountFor(int index) {
+    if (index == _notificationIndex) return notificationBadgeCount;
+    if (index == _chatIndex) return chatBadgeCount;
+    if (index == _feedIndex) return feedBadgeCount;
+    if (index == _messagesIndex) return messagesBadgeCount;
+    return 0;
+  }
+
+  Widget _badgedIcon(IconData iconData, int count) {
     final icon = Icon(iconData);
-    if (!showBadge || notificationBadgeCount == 0) return icon;
-    return Badge.count(count: notificationBadgeCount, child: icon);
+    if (count == 0) return icon;
+    return Badge.count(count: count, child: icon);
   }
 
   Widget _buildExpanded(BuildContext context, List<(IconData, IconData, String)> destinations) {
@@ -101,7 +118,7 @@ class SidebarNavigation extends StatelessWidget {
                     label: destinations[i].$3,
                     selected: selectedIndex == i,
                     onTap: () => onDestinationSelected(i),
-                    badgeCount: i == _notificationIndex ? notificationBadgeCount : 0,
+                    badgeCount: _badgeCountFor(i),
                   ),
               ],
             ),

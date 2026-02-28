@@ -44,10 +44,12 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
   final _scrollController = ScrollController();
   final _textController = TextEditingController();
   final _focusNode = FocusNode();
+  final _unreadSeparatorKey = GlobalKey();
   bool _sending = false;
   int? _replyToId;
   String? _replyToUsername;
   bool _showScrollToBottom = false;
+  late final int? _lastReadMessageId = widget.channel.lastReadMessageId;
 
   List<String> _typingUsers = [];
   Timer? _typingTimer;
@@ -90,6 +92,7 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
 
   @override
   void dispose() {
+    _markMessagesAsRead();
     _typingTimer?.cancel();
     _presencePollTimer?.cancel();
     _messageBusNotifier.unsubscribeFromChatChannel(widget.channel.id);
@@ -99,6 +102,11 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
     _focusNode.dispose();
     _leavePresence();
     super.dispose();
+  }
+
+  void _markMessagesAsRead() {
+    ref.read(chatMessagesProvider(_params).notifier).markAllRead();
+    ref.read(chatChannelListProvider(widget.serverUrl).notifier).refresh();
   }
 
   void _onTextChanged() {
@@ -191,6 +199,24 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
           _scrollController.position.maxScrollExtent,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  void _scrollToUnread() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _unreadSeparatorKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.15,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      } else if (_scrollController.hasClients) {
+        _scrollController.jumpTo(
+          _scrollController.position.maxScrollExtent,
         );
       }
     });
@@ -518,7 +544,7 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
 
     ref.listen(chatMessagesProvider(_params), (prev, next) {
       if ((prev?.isLoading ?? true) && !next.isLoading && next.messages.isNotEmpty) {
-        _scrollToBottom();
+        _scrollToUnread();
         return;
       }
       if (prev != null &&
@@ -675,6 +701,11 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
         final showDateSeparator = prevMsg == null ||
             !_isSameDay(prevMsg.createdAt, msg.createdAt);
 
+        final showUnreadSeparator = _lastReadMessageId != null &&
+            prevMsg != null &&
+            prevMsg.id <= _lastReadMessageId &&
+            msg.id > _lastReadMessageId;
+
         String? replyToUsername;
         String? replyToExcerpt;
         String? replyToAvatarTemplate;
@@ -710,6 +741,8 @@ class _ChatChannelScreenState extends ConsumerState<ChatChannelScreen> {
           children: [
             if (showDateSeparator)
               _DateSeparator(date: msg.createdAt),
+            if (showUnreadSeparator)
+              _UnreadSeparator(key: _unreadSeparatorKey),
             _ChatMessageBubble(
               message: msg,
               serverUrl: widget.serverUrl,
@@ -1246,6 +1279,34 @@ class _DateSeparator extends StatelessWidget {
             ),
           ),
           Expanded(child: Divider(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4))),
+        ],
+      ),
+    );
+  }
+}
+
+class _UnreadSeparator extends StatelessWidget {
+  const _UnreadSeparator({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(child: Divider(color: theme.colorScheme.error, thickness: 1.5)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              'New',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Expanded(child: Divider(color: theme.colorScheme.error, thickness: 1.5)),
         ],
       ),
     );

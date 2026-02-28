@@ -76,11 +76,13 @@ class NotificationSettings {
     const mentionTypes = {1, 3, 15};
     const likeTypes = {5, 19};
     const messageTypes = {6, 7, 16};
+    const chatTypes = {29, 30, 31, 32, 40};
 
     if (replyTypes.contains(notificationType)) return filterReplies;
     if (mentionTypes.contains(notificationType)) return filterMentions;
     if (likeTypes.contains(notificationType)) return filterLikes;
     if (messageTypes.contains(notificationType)) return filterMessages;
+    if (chatTypes.contains(notificationType)) return filterMessages;
     return filterOther;
   }
 

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lunaris/core/models/chat_channel.dart';
 import 'package:lunaris/core/providers/chat_provider.dart';
+import 'package:lunaris/core/providers/providers.dart';
+import 'package:lunaris/core/utils/html_entity_decoder.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 class ChatChannelListView extends ConsumerWidget {
@@ -91,6 +93,7 @@ class ChatChannelListView extends ConsumerWidget {
 
     final publicChannels = state.publicChannels;
     final dms = state.directMessages;
+    final currentUserId = ref.watch(activeServerProvider)?.userId;
 
     return Scaffold(
       body: RefreshIndicator(
@@ -104,6 +107,7 @@ class ChatChannelListView extends ConsumerWidget {
                 _ChannelTile(
                   channel: channel,
                   serverUrl: serverUrl,
+                  currentUserId: currentUserId,
                   isSelected: selectedChannelId == channel.id,
                   onTap: () => onChannelSelected?.call(channel),
                 ),
@@ -114,6 +118,7 @@ class ChatChannelListView extends ConsumerWidget {
                 _ChannelTile(
                   channel: dm,
                   serverUrl: serverUrl,
+                  currentUserId: currentUserId,
                   isSelected: selectedChannelId == dm.id,
                   onTap: () => onChannelSelected?.call(dm),
                 ),
@@ -175,12 +180,14 @@ class _SectionHeader extends StatelessWidget {
 class _ChannelTile extends StatelessWidget {
   final ChatChannel channel;
   final String serverUrl;
+  final int? currentUserId;
   final bool isSelected;
   final VoidCallback onTap;
 
   const _ChannelTile({
     required this.channel,
     required this.serverUrl,
+    required this.currentUserId,
     required this.isSelected,
     required this.onTap,
   });
@@ -202,18 +209,14 @@ class _ChannelTile extends StatelessWidget {
             : null,
       ),
       subtitle: channel.lastMessage != null
-          ? Text(
-              channel.lastMessage!.excerpt ??
-                  channel.lastMessage!.message,
+          ? Text.rich(
+              TextSpan(children: _buildPreviewSpans(theme)),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
             )
           : channel.description != null
               ? Text(
-                  channel.description!,
+                  decodeHtmlEntities(channel.description!),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
@@ -247,6 +250,31 @@ class _ChannelTile extends StatelessWidget {
       ),
       onTap: onTap,
     );
+  }
+
+  List<InlineSpan> _buildPreviewSpans(ThemeData theme) {
+    final msg = channel.lastMessage!;
+    final isOwn = currentUserId != null && msg.userId == currentUserId;
+    final senderName = isOwn ? 'You' : msg.username;
+    final rawText = msg.excerpt ?? msg.message;
+    final text = decodeHtmlEntities(rawText);
+
+    return [
+      if (senderName != null)
+        TextSpan(
+          text: '$senderName: ',
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.onSurface,
+          ),
+        ),
+      TextSpan(
+        text: text,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    ];
   }
 
   Widget _buildAvatar(ThemeData theme) {

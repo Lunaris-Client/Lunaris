@@ -10,6 +10,7 @@ class ChatChannel {
   final ChatMessage? lastMessage;
   final int? unreadCount;
   final int? unreadMentions;
+  final int? lastReadMessageId;
   final bool threadingEnabled;
   final List<DmUser> dmUsers;
   final bool isGroupDm;
@@ -26,6 +27,7 @@ class ChatChannel {
     this.lastMessage,
     this.unreadCount,
     this.unreadMentions,
+    this.lastReadMessageId,
     this.threadingEnabled = false,
     this.dmUsers = const [],
     this.isGroupDm = false,
@@ -34,15 +36,39 @@ class ChatChannel {
   bool get isDirectMessage => channelType.toLowerCase().contains('direct');
   bool get isCategory => !isDirectMessage;
 
+  ChatChannel copyWith({
+    ChatMessage? lastMessage,
+    int? unreadCount,
+    int? unreadMentions,
+    int? lastReadMessageId,
+  }) {
+    return ChatChannel(
+      id: id,
+      title: title,
+      description: description,
+      channelType: channelType,
+      membershipsCount: membershipsCount,
+      currentUserMembershipId: currentUserMembershipId,
+      currentUserFollowing: currentUserFollowing,
+      status: status,
+      lastMessage: lastMessage ?? this.lastMessage,
+      unreadCount: unreadCount ?? this.unreadCount,
+      unreadMentions: unreadMentions ?? this.unreadMentions,
+      lastReadMessageId: lastReadMessageId ?? this.lastReadMessageId,
+      threadingEnabled: threadingEnabled,
+      dmUsers: dmUsers,
+      isGroupDm: isGroupDm,
+    );
+  }
+
   factory ChatChannel.fromJson(Map<String, dynamic> json) {
     final membership =
         json['current_user_membership'] as Map<String, dynamic>?;
 
     ChatMessage? lastMsg;
     if (json['last_message'] is Map<String, dynamic>) {
-      lastMsg = ChatMessage.fromJson(
-        json['last_message'] as Map<String, dynamic>,
-      );
+      final lm = json['last_message'] as Map<String, dynamic>;
+      lastMsg = ChatMessage.fromJson(lm);
     }
 
     final chatable = json['chatable'] as Map<String, dynamic>?;
@@ -72,6 +98,7 @@ class ChatChannel {
       lastMessage: lastMsg,
       unreadCount: membership?['unread_count'] as int?,
       unreadMentions: membership?['unread_mentions'] as int?,
+      lastReadMessageId: membership?['last_read_message_id'] as int?,
       threadingEnabled: json['threading_enabled'] as bool? ?? false,
       dmUsers: dmUsers,
       isGroupDm: isGroupDm,
